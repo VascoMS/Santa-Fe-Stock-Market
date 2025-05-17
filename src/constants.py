@@ -4,6 +4,12 @@ NUM_STEPS = 5000
 NUM_INDICATORS = 7
 NUM_PREDICTORS = 100
 
+# Global Agent parameters
+
+AGENT_INITIAL_CASH = 1000
+RISK_AVERSION     = 1.0  
+GENETIC_EXPLORATION_PARAMETER = 500 # How often the genetic algorithm runs (K in the paper)
+
 # Global Asset parameters
 INTEREST_RATE = 0.02
 

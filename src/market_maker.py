@@ -92,7 +92,7 @@ class MarketMaker:
         return self._auctions[asset].determine_price()
 
     def start_auctions(self):
-        for asset in self._assets.values:
+        for asset in self._assets:
             self._auctions[asset] = Auction(asset, self.K)
     
     def get_price(self, asset: str) -> float:
@@ -109,4 +109,3 @@ class MarketMaker:
     
     def get_all_dividends(self) -> Dict[str, float]:
         return {asset: self._assets[asset].get_dividend() for asset in self._assets}
-
