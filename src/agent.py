@@ -1,12 +1,7 @@
-from abc import ABC, abstractmethod
-from data import Action
-
-class Agent(ABC):
+class Agent:
     def __init__(self, id: str, cash: float):
         self._id = id
-        self._position = None
+        self._portfolio = {"asset_1": 0, "asset_2": 0, "asset_3": 0}
         self._cash = cash
+        self._demand = {"asset_1": 0, "asset_2": 0, "asset_3": 0}
 
-    @abstractmethod
-    def act(self) -> Action:
-        pass

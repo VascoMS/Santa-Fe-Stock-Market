@@ -7,7 +7,7 @@ class Asset:
         self._dividend_mean = initial_dividend
         self._prev_dividend_delta = self._dividend - self._dividend_mean
         self._price = initial_dividend / bank_return # setting initial price to fair price of d(t)/r 
-        self._ro = rho # recommended -> 0.9 for d = 2 r = 0.02
+        self._rho = rho # recommended -> 0.9 for d = 2 r = 0.02
         self._alpha = alpha # recommended -> 0.15 for d = 2 r = 0.02
         self._supply = supply
 
@@ -33,9 +33,9 @@ class MarketMaker:
         self._assets: Dict[str, Asset] = assets
         self._auctions: Dict[str, Auction] = dict()
 
-    def add_demand(self, asset: str, amount: int):
+    def add_demand(self, asset: str, amount: int, slope:int):
         auction = self._auctions[asset]
-        auction.add_demand(amount)
+        auction.add_demand(amount, slope)
     
     def determine_price(self, asset: str) -> Tuple[int, bool]:
         return self._auctions[asset].determine_price()
