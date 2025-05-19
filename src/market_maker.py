@@ -1,28 +1,6 @@
 import numpy as np
-from typing import Dict, Tuple
+from typing import Dict, Tuple, List
 from constants import *
-
-def create_assets():
-    return {
-        "asset_1": Asset(
-            initial_dividend=ASSET_1_INITIAL_DIVIDEND,
-            rho=ASSET_1_RHO,
-            alpha=ASSET_1_ALPHA,
-            supply=ASSET_1_SUPPLY
-        ),
-        "asset_2": Asset(
-            initial_dividend=ASSET_2_INITIAL_DIVIDEND,
-            rho=ASSET_2_RHO,
-            alpha=ASSET_2_ALPHA,
-            supply=ASSET_2_SUPPLY
-        ),
-        "asset_3": Asset(
-            initial_dividend=ASSET_3_INITIAL_DIVIDEND,
-            rho=ASSET_3_RHO,
-            alpha=ASSET_3_ALPHA,
-            supply=ASSET_3_SUPPLY
-        )
-    }
 
 class Asset:
     def __init__(self, initial_dividend: float, rho: float, alpha: float, supply: int):
@@ -47,7 +25,7 @@ class Asset:
     def get_price(self) -> float:
         return self._price
     
-    def get_price_history(self) -> float:
+    def get_price_history(self) -> List[float]:
         return self._price_history
     
     def get_supply(self) -> int:
@@ -71,29 +49,72 @@ class Auction:
     
     def determine_price(self) -> Tuple[int, bool]:
         delta = self._demand - self._supply
-        cleared = delta < 1e-2
+        cleared = self.cleared()
         if not cleared:
             self._price = self._price - self._k * (delta/self._slope)
             self._demand = 0
         return self._price, cleared
+    
+    def clear_demand(self):
+        self._demand = 0
+        self._slope = 0
+    
+    def cleared(self) -> bool:
+        return self._demand - self._supply < 1e-2
 
 class MarketMaker:
     K = 0.001
 
     def __init__(self):
-        self._assets = create_assets()
+        self._assets: Dict[str, Asset] = self._create_assets()
         self._auctions: Dict[str, Auction] = dict()
 
+    def _create_assets(self):
+        return {
+        "asset_1": Asset(
+            initial_dividend=ASSET_1_INITIAL_DIVIDEND,
+            rho=ASSET_1_RHO,
+            alpha=ASSET_1_ALPHA,
+            supply=ASSET_1_SUPPLY
+        ),
+        "asset_2": Asset(
+            initial_dividend=ASSET_2_INITIAL_DIVIDEND,
+            rho=ASSET_2_RHO,
+            alpha=ASSET_2_ALPHA,
+            supply=ASSET_2_SUPPLY
+        ),
+        "asset_3": Asset(
+            initial_dividend=ASSET_3_INITIAL_DIVIDEND,
+            rho=ASSET_3_RHO,
+            alpha=ASSET_3_ALPHA,
+            supply=ASSET_3_SUPPLY
+        )
+    }
+    
     def add_demand(self, asset: str, amount: int, slope:int):
         auction = self._auctions[asset]
         auction.add_demand(amount, slope)
-    
-    def determine_price(self, asset: str) -> Tuple[int, bool]:
-        return self._auctions[asset].determine_price()
 
+    
+    def run_auctions(self, assets: List[str]) -> Tuple[int, bool]:
+        auction_prices = dict()
+        for asset in assets:
+            auction = self._auctions[asset]
+            if auction and not self._auctions[asset].cleared():
+                auction.clear_demand()
+                price, _ = self._auctions[asset].determine_price()
+                auction_prices[asset] = price
+        return auction_prices
+    
+    def finalize_auctions(self):
+        for asset_id, asset in self._assets.items():
+            auction = self._auctions[asset_id]
+            if auction and auction.cleared():
+                asset.set_price(auction._price)
+            
     def start_auctions(self):
-        for asset in self._assets:
-            self._auctions[asset] = Auction(asset, self.K)
+        for asset_id, asset in self._assets.items():
+            self._auctions[asset_id] = Auction(asset, self.K)
     
     def get_price(self, asset: str) -> float:
         return self._assets[asset].get_price()
@@ -109,3 +130,17 @@ class MarketMaker:
     
     def get_all_dividends(self) -> Dict[str, float]:
         return {asset: self._assets[asset].get_dividend() for asset in self._assets}
+    
+    def get_all_prices_and_dividends(self) -> Dict[str, Tuple[float, float]]:
+        return {asset: (self._assets[asset].get_price(), self._assets[asset].get_dividend()) for asset in self._assets}
+    
+    def get_uncleared_assets(self) -> List[str]:
+        return [asset for asset, auction in self._auctions.items() if not auction.cleared()]
+    
+    def update_dividends(self):
+        for asset in self._assets.values():
+            asset.update_dividend()
+    
+    def clear_auctions(self, assets: List[str]):
+        for asset in assets:
+            self._auctions[asset].clear_demand()

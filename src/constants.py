@@ -13,6 +13,9 @@ GENETIC_EXPLORATION_PARAMETER = 500 # How often the genetic algorithm runs (K in
 # Global Asset parameters
 INTEREST_RATE = 0.02
 
+# Predictor parameters
+LAMBDA = 1/75
+
 # Asset 1 specific parameters
 ASSET_1_SUPPLY = 100
 ASSET_1_INITIAL_CASH = 1000

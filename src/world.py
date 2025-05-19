@@ -1,3 +1,4 @@
+from typing import List
 import numpy as np
 from market_maker import MarketMaker
 from agent import Agent
@@ -27,20 +28,28 @@ class World:
             self._market_maker.start_auctions()
 
             # 2. Compute current information bits
-            self._state.update_bitstring()
-            bits = self._state.bitstring  # shape (3, NUM_INDICATORS)
+            bits = self._state.update_bitstring() # shape (3, NUM_INDICATORS)    
 
-            # 3. Each agent submits demand for each asset
-            for agent in self._agents:
-                agent.submit_orders(self._state.bitstring, self._state._asset_indexes)
+            uncleared_assets = self._market_maker.get_uncleared_assets()
+            prices = self._market_maker.get_all_prices()
+            dividends = self._market_maker.get_all_dividends()
+    
+            while uncleared_assets:
+                uncleared_asset_indexes = {asset: self._state._asset_indexes[asset] for asset in uncleared_assets}
+            
+                # 3. Agents compute demands
+                for agent in self._agents:
+                    demands_and_slope = agent.calc_demands(bits, uncleared_asset_indexes, prices, dividends)
+                    for asset, (demand, slope) in demands_and_slope.items():
+                        # Submit demand to market maker
+                        self._market_maker.add_demand(asset, demand, slope)
+                # Run auctions for all uncleared assets and get new prices
+                prices = self._market_maker.run_auctions(uncleared_assets)
 
-            # 4. Market clearing: determine new prices & update dividends
-            for asset in self._market_maker._assets:
-                new_price, cleared = self._market_maker.determine_price(asset)
-                # Update price and dividend
-                self._market_maker._assets[asset].set_price(new_price)
-                self._market_maker._assets[asset].update_dividend()
-
+            # Update prices and dividends for all assets
+            self._market_maker.finalize_auctions()
+            self._market_maker.update_dividends()
+            
             # 5. Agents update wealth, portfolios, and predictor performance
             for agent in self._agents:
                 # Update cash by interest and any dividends
@@ -80,6 +89,8 @@ class State:
             self._bitstring[index, 4] = price > compute_moving_average(price_history, 100)
             self._bitstring[index, 5] = price > compute_moving_average(price_history, 500)
             self._bitstring[index, 6] = True
+        
+        return self._bitstring
 
 
             

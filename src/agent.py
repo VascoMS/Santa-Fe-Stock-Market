@@ -4,9 +4,10 @@ import numpy as np
 from market_maker import MarketMaker
 from constants import *
 from predictor import Predictor
+from typing import Dict, List, Tuple
 
 class Agent:
-    def __init__(self, id: str, cash: float, market_maker: MarketMaker):
+    def __init__(self, id: str, cash: float, ):
         self._id = id
         # holdings in each of the three assets
         self._portfolio = {"asset_1": 0, "asset_2": 0, "asset_3": 0}
@@ -14,10 +15,9 @@ class Agent:
         self._cash = cash
         # desired holdings / demand each period
         self._demand = {"asset_1": 0, "asset_2": 0, "asset_3": 0}
-        self._market_maker = market_maker
 
         # create a pool of predictors per asset
-        self._predictors = {}
+        self._predictors: Dict[str, List[Predictor]] = {}
         for asset in self._portfolio:
             self._predictors[asset] = [
                 Predictor(asset) for _ in range(NUM_PREDICTORS)
@@ -44,36 +44,37 @@ class Agent:
         """Re‐balance portfolio to match last period’s submitted demand."""
         self._portfolio = self._demand.copy()
 
-    def submit_orders(self, bitstring: np.ndarray, asset_indexes: dict):
+    def calc_demands(self, bitstring: np.ndarray, asset_indexes: dict, prices: Dict[str, float], dividends: Dict[str, float]) -> Dict[str, Tuple[int, float]]:
         """
         Given the current world‐state bits, for each asset:
           1. Filter predictors whose condition string matches.
           2. Pick the lowest‐variance predictor.
-          3. Compute CARA‐optimal holding: h* = (E[price+div] - p(1+r)) / (γ·Var)
+          3. Compute CARA‐optimal holding: h* = (E[price+div] - p(1+r)) / (λ·Var)
           4. Round to integer shares, store in self._demand,
-             and send (demand, slope=1/Var) to the market maker.
+             and send (demand, slope=dh*/dp) to the market maker.
         """
+        demands_and_slope = dict()
         for asset, idx in asset_indexes.items():
-            price    = self._market_maker.get_price(asset)
-            dividend = self._market_maker.get_dividend(asset)
+            price = prices[asset]
+            dividend = dividends[asset]
 
             # pick predictors that “fire” on the current bitstring
-            active = [
+            active_predictors = [
                 p for p in self._predictors[asset]
                 if p.matches(bitstring[idx])
             ]
-            if not active:
+            if not active_predictors:
                 # no signal ⇒ no position
                 self._demand[asset] = 0
+                demands_and_slope[asset] = 0, 0
                 continue
 
             # choose the most precise predictor
-            best_var = min(p.get_variance() for p in active)
-            best = next(p for p in active if p.get_variance() == best_var)
+            best_p = min(active_predictors, key=lambda p: p.get_variance())
 
             # one‐step ahead forecast of total payout
-            expected = best.predict(price, dividend)
-            variance = best.get_variance()
+            expected = best_p.predict(price, dividend)
+            variance = best_p.get_variance()
 
             # CARA‐optimal target shares
             target_h = (expected - price * (1 + INTEREST_RATE)) / (
@@ -83,9 +84,11 @@ class Agent:
 
             # record for portfolio update
             self._demand[asset] = qty
-            # submit to auction (slope = confidence = 1/variance)
-            slope = 1.0 / (variance + 1e-8)
-            self._market_maker.add_demand(asset, qty, slope)
+            # submit to auction 
+            slope = (best_p.get_parameter_a() - (1 + INTEREST_RATE)) / (LAMBDA * variance) # Derivative of the demand function with respect to price
+            demands_and_slope[asset] = qty, slope
+        return demands_and_slope
+    
 
     def update_predictors(self):
         """
