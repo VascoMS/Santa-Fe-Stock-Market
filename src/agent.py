@@ -4,7 +4,7 @@ import numpy as np
 from market_maker import MarketMaker
 from constants import *
 from predictor import Predictor
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 class Agent:
     def __init__(self, id: str, cash: float, ):
@@ -16,6 +16,8 @@ class Agent:
         # desired holdings / demand each period
         self._demand = {"asset_1": 0, "asset_2": 0, "asset_3": 0}
 
+        self._latest_observation = None
+
         # create a pool of predictors per asset
         self._predictors: Dict[str, List[Predictor]] = {}
         for asset in self._portfolio:
@@ -23,94 +25,150 @@ class Agent:
                 Predictor(asset) for _ in range(NUM_PREDICTORS)
             ]
 
-    def compute_wealth(self) -> float:
-        """Total wealth = cash + market value of all holdings."""
-        return self._cash + sum(
-            self._portfolio[a] * self._market_maker.get_price(a)
-            for a in self._portfolio
-        )
-
-    def update_cash(self):
-        """Roll cash forward by interest and collect dividends."""
-        # interest on cash
-        self._cash *= (1 + INTEREST_RATE)
-        # dividends on holdings
-        self._cash += sum(
-            self._portfolio[a] * self._market_maker.get_dividend(a)
-            for a in self._portfolio
-        )
-
-    def update_portfolio(self):
-        """Re‐balance portfolio to match last period’s submitted demand."""
-        self._portfolio = self._demand.copy()
-
-    def calc_demands(self, bitstring: np.ndarray, asset_indexes: dict, prices: Dict[str, float], dividends: Dict[str, float]) -> Dict[str, Tuple[int, float]]:
+    def observe(self, observation: Dict[str, Any]) -> None:
         """
-        Given the current world‐state bits, for each asset:
-          1. Filter predictors whose condition string matches.
-          2. Pick the lowest‐variance predictor.
-          3. Compute CARA‐optimal holding: h* = (E[price+div] - p(1+r)) / (λ·Var)
-          4. Round to integer shares, store in self._demand,
-             and send (demand, slope=dh*/dp) to the market maker.
+        Process and store an observation of the market state.
+        
+        Parameters:
+        - observation: Dictionary containing:
+            - bitstring: Binary array of market indicators
+            - asset_indexes: Mapping of asset IDs to their indexes in the bitstring
+            - prices: Current prices of all assets
+            - dividends: Current dividends of all assets
+            - uncleared_assets: List of assets with uncleared markets
         """
-        demands_and_slope = dict()
-        for asset, idx in asset_indexes.items():
+        self._latest_observation = observation
+
+    def act(self) -> Dict[str, Tuple[int, float]]:
+        """
+        Calculate demands based on the latest observation.
+        Returns a dictionary of asset_id -> (quantity, price_slope).
+        """
+        if not self._latest_observation:
+            return {}
+            
+        bitstring = self._latest_observation["bitstring"]
+        asset_indexes = self._latest_observation["asset_indexes"]
+        prices = self._latest_observation["prices"]
+        dividends = self._latest_observation["dividends"]
+        uncleared_assets = self._latest_observation.get("uncleared_assets", list(asset_indexes.keys()))
+        
+        demands_and_slope = {}
+        for asset in uncleared_assets:
+            idx = asset_indexes[asset]
             price = prices[asset]
             dividend = dividends[asset]
 
-            # pick predictors that “fire” on the current bitstring
+            # Pick predictors that "fire" on the current bitstring
             active_predictors = [
                 p for p in self._predictors[asset]
                 if p.matches(bitstring[idx])
             ]
+            
             if not active_predictors:
-                # no signal ⇒ no position
+                # No signal ⇒ no position
                 self._demand[asset] = 0
-                demands_and_slope[asset] = 0, 0
+                demands_and_slope[asset] = (0, 0)
                 continue
 
-            # choose the most precise predictor
+            # Choose the most precise predictor
             best_p = min(active_predictors, key=lambda p: p.get_variance())
 
-            # one‐step ahead forecast of total payout
+            # One-step ahead forecast of total payout
             expected = best_p.predict(price, dividend)
             variance = best_p.get_variance()
 
-            # CARA‐optimal target shares
+            # CARA-optimal target shares
             target_h = (expected - price * (1 + INTEREST_RATE)) / (
                 RISK_AVERSION * variance
             )
             qty = int(np.round(target_h))
 
-            # record for portfolio update
+            # Record for portfolio update
             self._demand[asset] = qty
-            # submit to auction 
-            slope = (best_p.get_parameter_a() - (1 + INTEREST_RATE)) / (LAMBDA * variance) # Derivative of the demand function with respect to price
-            demands_and_slope[asset] = qty, slope
+            # Submit to auction 
+            slope = (best_p.get_parameter_a() - (1 + INTEREST_RATE)) / (RISK_AVERSION * variance) # dh/dp
+            demands_and_slope[asset] = (qty, slope)
+            
         return demands_and_slope
     
+    def compute_wealth(self) -> float:
+        """Calculate total wealth = cash + market value of all holdings."""
+        if not self._latest_observation:
+            return self._cash
+            
+        prices = self._latest_observation["prices"]
+        
+        portfolio_value = sum(
+            self._portfolio[asset] * prices[asset]
+            for asset in self._portfolio if asset in prices
+        )
+        
+        return self._cash + portfolio_value
 
-    def update_predictors(self):
+    def _update_cash(self) -> None:
+        """Roll cash forward by interest and collect dividends."""
+        if not self._latest_observation:
+            return
+            
+        dividends = self._latest_observation["dividends"]
+        
+        # Interest on cash
+        self._cash *= (1 + INTEREST_RATE)
+        
+        # Dividends on holdings
+        self._cash += sum(
+            self._portfolio[asset] * dividends[asset]
+            for asset in self._portfolio if asset in dividends
+        )
+
+    def _update_portfolio(self):
+        """Re‐balance portfolio to match last period’s submitted demand."""
+        self._portfolio = self._demand.copy()
+
+    def _update_predictors(self) -> None:
         """
-        Update each predictor’s performance using the true price and dividend.
+        Update each predictor's performance using the true price and dividend.
         Optionally: mutate or run GA here at rate 1/K.
         """
-        for asset in self._portfolio:
-            true_price = self._market_maker.get_price(asset)
-            true_dividend = self._market_maker.get_dividend(asset)
-            for predictor in self._predictors[asset]:
-                predictor.update(true_price, true_dividend)
-            if np.random.rand() < 1 / GENETIC_EXPLORATION_PARAMETER:
-                self.genetic_algorithm()
+        if not self._latest_observation:
+            return
             
-    def genetic_algorithm(self):
+        prices = self._latest_observation["prices"]
+        dividends = self._latest_observation["dividends"]
+        
+        for asset in self._portfolio:
+            if asset in prices and asset in dividends:
+                true_price = prices[asset]
+                true_dividend = dividends[asset]
+                
+                for predictor in self._predictors[asset]:
+                    predictor.update(true_price, true_dividend)
+                    
+                # Occasionally evolve predictors
+                if np.random.rand() < 1 / GENETIC_EXPLORATION_PARAMETER:
+                    self._evolve_predictors(asset)
+    
+    def update(self):
         """
-        Run a genetic algorithm to evolve the predictors.
+        Update the agent's state.
+        This method is called at each time step to update the agent's state.
+        """
+        # Update cash and portfolio
+        self._update_cash()
+        self._update_portfolio()
+        
+        # Update predictors
+        self._update_predictors()
+            
+    def _evolve_predictors(self, asset: str) -> None:
+        """
+        Run a genetic algorithm to evolve the predictors for a specific asset.
         Replaces the worst 20% (highest variance) with mutated clones of the top 20% (lowest variance).
         """
         # Sort predictors by variance (ascending: low to high)
         sorted_predictors = sorted(
-            self._predictors.values(),
+            self._predictors[asset],
             key=lambda p: p.get_variance()
         )
 
@@ -130,9 +188,6 @@ class Agent:
             mutated_clones.append(clone)
 
         # Remove the worst predictors
-        remaining_predictors = [
+        self._predictors[asset] = [
             p for p in sorted_predictors if p not in worst
-        ]
-
-        # Combine remaining + mutated clones
-        self._predictors = remaining_predictors + mutated_clones
+        ] + mutated_clones

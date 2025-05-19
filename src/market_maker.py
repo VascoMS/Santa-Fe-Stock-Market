@@ -1,3 +1,4 @@
+from collections import deque
 import numpy as np
 from typing import Dict, Tuple, List
 from constants import *
@@ -8,7 +9,7 @@ class Asset:
         self._dividend_mean = initial_dividend
         self._prev_dividend_delta = self._dividend - self._dividend_mean
         self._price = initial_dividend / INTEREST_RATE # setting initial price to fair price of d(t)/r 
-        self._price_history = [self._price]
+        self._price_history = deque([self._price]) # Store last 100 prices
         self._rho = rho # recommended -> 0.9 for d = 2 r = 0.02
         self._alpha = alpha # recommended -> 0.15 for d = 2 r = 0.02
         self._supply = supply
@@ -26,7 +27,7 @@ class Asset:
         return self._price
     
     def get_price_history(self) -> List[float]:
-        return self._price_history
+        return self._price_history.copy()
     
     def get_supply(self) -> int:
         return self._supply
@@ -119,7 +120,7 @@ class MarketMaker:
     def get_price(self, asset: str) -> float:
         return self._assets[asset].get_price()
     
-    def get_price_history(self, asset: str) -> float:
+    def get_price_history(self, asset: str) -> List[float]:
         return self._assets[asset].get_price_history()
     
     def get_dividend(self, asset: str) -> float:
@@ -133,6 +134,9 @@ class MarketMaker:
     
     def get_all_prices_and_dividends(self) -> Dict[str, Tuple[float, float]]:
         return {asset: (self._assets[asset].get_price(), self._assets[asset].get_dividend()) for asset in self._assets}
+    
+    def get_all_price_histories(self) -> Dict[str, List[float]]:
+        return {asset: self._assets[asset].get_price_history() for asset in self._assets}
     
     def get_uncleared_assets(self) -> List[str]:
         return [asset for asset, auction in self._auctions.items() if not auction.cleared()]
