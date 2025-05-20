@@ -7,7 +7,7 @@ from predictor import Predictor
 from typing import Any, Dict, List, Tuple
 
 class Agent:
-    def __init__(self, id: str, cash: float, ):
+    def __init__(self, id: str, cash: float, asset_indexes: Dict[str, int]):
         self._id = id
         # holdings in each of the three assets
         self._portfolio = {"asset_1": 0, "asset_2": 0, "asset_3": 0}
@@ -16,14 +16,19 @@ class Agent:
         # desired holdings / demand each period
         self._demand = {"asset_1": 0, "asset_2": 0, "asset_3": 0}
 
+        self._asset_indexes = asset_indexes
+
         self._latest_observation = None
+
+        self._latest_activated_predictors: Dict[str, Predictor] = {"asset_1": None, "asset_2": None, "asset_3": None}
 
         # create a pool of predictors per asset
         self._predictors: Dict[str, List[Predictor]] = {}
         for asset in self._portfolio:
             self._predictors[asset] = [
-                Predictor(asset) for _ in range(NUM_PREDICTORS)
+                Predictor(asset, self._asset_indexes[asset]) for _ in range(NUM_PREDICTORS)
             ]
+        
 
     def observe(self, observation: Dict[str, Any]) -> None:
         """
@@ -32,7 +37,6 @@ class Agent:
         Parameters:
         - observation: Dictionary containing:
             - bitstring: Binary array of market indicators
-            - asset_indexes: Mapping of asset IDs to their indexes in the bitstring
             - prices: Current prices of all assets
             - dividends: Current dividends of all assets
             - uncleared_assets: List of assets with uncleared markets
@@ -44,53 +48,66 @@ class Agent:
         Calculate demands based on the latest observation.
         Returns a dictionary of asset_id -> (quantity, price_slope).
         """
-        if not self._latest_observation:
-            return {}
-            
-        bitstring = self._latest_observation["bitstring"]
-        asset_indexes = self._latest_observation["asset_indexes"]
-        prices = self._latest_observation["prices"]
-        dividends = self._latest_observation["dividends"]
-        uncleared_assets = self._latest_observation.get("uncleared_assets", list(asset_indexes.keys()))
         
-        demands_and_slope = {}
-        for asset in uncleared_assets:
-            idx = asset_indexes[asset]
-            price = prices[asset]
-            dividend = dividends[asset]
+        bitstring = self._latest_observation["bitstring"]
+        prices = self._latest_observation["prices"]
+        uncleared_assets = self._latest_observation["uncleared_assets"]
 
-            # Pick predictors that "fire" on the current bitstring
+        # Get predictions (vector) and covariance matrix
+        prediction_vec, covariance_matrix = self._get_predictions_and_covariance_matrix(bitstring)
+
+        price_vec = np.array([prices[asset] for asset in self._portfolio])
+
+        # Compute expected excess returns (μ vector)
+        mu = prediction_vec - price_vec * (1 + INTEREST_RATE)
+
+        # Compute CARA-optimal holdings: h = (1/λ) * Σ⁻¹ * μ
+        try:
+            inv_cov = np.linalg.inv(covariance_matrix)
+        except np.linalg.LinAlgError:
+            # Handle singular matrix gracefully
+            inv_cov = np.linalg.pinv(covariance_matrix)
+
+        h_star = (1 / RISK_AVERSION) * inv_cov.dot(mu)
+
+        # Prepare output
+        demands_and_slope = {}
+        for asset, idx in self._asset_indexes.items():
+            if(asset not in uncleared_assets):
+                continue
+            qty = int(np.round(h_star[idx]))
+            # Record for portfolio update
+            self._demand[asset] = qty
+            #slope = (best_p.get_parameter_a() - (1 + INTEREST_RATE)) / (RISK_AVERSION * variance) # dh/dp
+            slope = 0
+            demands_and_slope[asset] = (qty, slope)
+            
+        return demands_and_slope
+    
+    def _get_predictions_and_covariance_matrix(self, bitstring: List[bool]) -> Tuple:
+        # Pick predictors that "fire" on the current bitstring and predict the next price + dividend as well as the covariance matrix
+        predictions = []
+        covariance_matrix = np.zeros((NUM_ASSETS, NUM_ASSETS))
+        for asset in self._portfolio:
+            idx = self._asset_indexes[asset]
             active_predictors = [
                 p for p in self._predictors[asset]
                 if p.matches(bitstring[idx])
             ]
-            
             if not active_predictors:
-                # No signal ⇒ no position
-                self._demand[asset] = 0
-                demands_and_slope[asset] = (0, 0)
-                continue
-
-            # Choose the most precise predictor
+                predictions[asset] = None
             best_p = min(active_predictors, key=lambda p: p.get_variance())
 
-            # One-step ahead forecast of total payout
-            expected = best_p.predict(price, dividend)
-            variance = best_p.get_variance()
+            covariance_matrix[idx] = best_p.get_covariances()
 
-            # CARA-optimal target shares
-            target_h = (expected - price * (1 + INTEREST_RATE)) / (
-                RISK_AVERSION * variance
-            )
-            qty = int(np.round(target_h))
+            self._latest_activated_predictors[asset] = best_p
 
-            # Record for portfolio update
-            self._demand[asset] = qty
-            # Submit to auction 
-            slope = (best_p.get_parameter_a() - (1 + INTEREST_RATE)) / (RISK_AVERSION * variance) # dh/dp
-            demands_and_slope[asset] = (qty, slope)
-            
-        return demands_and_slope
+            predictions.append(best_p.predict(
+                self._latest_observation["prices"][asset],
+                self._latest_observation["dividends"][asset]
+            ))
+        return np.array(predictions), covariance_matrix
+
     
     def compute_wealth(self) -> float:
         """Calculate total wealth = cash + market value of all holdings."""
@@ -136,18 +153,24 @@ class Agent:
             
         prices = self._latest_observation["prices"]
         dividends = self._latest_observation["dividends"]
+        predictor_errors = []
         
+        # Calculate the error for each predictor
         for asset in self._portfolio:
-            if asset in prices and asset in dividends:
-                true_price = prices[asset]
-                true_dividend = dividends[asset]
-                
-                for predictor in self._predictors[asset]:
-                    predictor.update(true_price, true_dividend)
+            true_price = prices[asset]
+            true_dividend = dividends[asset]
+            predictor = self._latest_activated_predictors[asset]
+            error = predictor.calc_error(true_price, true_dividend)
+            predictor_errors.append(error)
+
+        # Update each predictor's performance
+        for asset in self._portfolio:
+            self._latest_activated_predictors[asset].update(predictor_errors)
+            # Occasionally evolve predictors
+            if np.random.rand() < 1 / GENETIC_EXPLORATION_PARAMETER:
+                self._evolve_predictors(asset)
                     
-                # Occasionally evolve predictors
-                if np.random.rand() < 1 / GENETIC_EXPLORATION_PARAMETER:
-                    self._evolve_predictors(asset)
+                
     
     def update(self):
         """

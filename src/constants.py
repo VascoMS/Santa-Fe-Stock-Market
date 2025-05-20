@@ -1,8 +1,9 @@
 # Simulation parameters
 NUM_AGENTS = 10
 NUM_STEPS = 5000
-NUM_INDICATORS = 7
+NUM_INDICATORS = 12
 NUM_PREDICTORS = 100
+NUM_ASSETS = 3
 
 # Global Agent parameters
 

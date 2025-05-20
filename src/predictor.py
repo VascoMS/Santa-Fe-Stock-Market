@@ -1,15 +1,17 @@
 import random
+from typing import Dict, List
 import numpy as np
-from constants import NUM_INDICATORS, LAMBDA
+from constants import NUM_INDICATORS, LAMBDA, NUM_ASSETS
 
 class Predictor:
-    def __init__(self, asset_name: str, memory_length: int = 50):
+    def __init__(self, asset_name: str, asset_idx: int):
         self._asset_name = asset_name
+        self._asset_idx = asset_idx
         self._a = np.random.uniform(0.4, 0.6)
         self._b = np.random.uniform(0.4, 0.6)
-        self._variance = 1.0
+        self._covariances = np.zeros(NUM_ASSETS)
+        self._covariances[asset_idx] = 1.0
         self._last_prediction = None
-
         self._condition_string = [random.choice(['0', '1', '#']) for _ in range(NUM_INDICATORS)]
 
     def matches(self, bitstring: np.ndarray) -> bool:
@@ -26,12 +28,19 @@ class Predictor:
         prediction = self._a * (current_price + current_dividend) + self._b
         self._last_prediction = prediction
         return prediction
+    
+    def calc_error(self, true_price: float, true_dividend: float) -> float:
+        if self._last_prediction is None:
+            return 0.0
+        error = (self._last_prediction - (true_price + true_dividend))
+        return error
 
-    def update(self, true_price: float, true_dividend: float):
+    def update(self, predictor_errors: List[float]):
         if self._last_prediction is None:
             return
-        squared_error = (self._last_prediction - (true_price + true_dividend)) ** 2
-        self._variance = (1 - LAMBDA) * self._variance + LAMBDA * squared_error
+        my_error = predictor_errors[self._asset_name]
+        for i in range(len(predictor_errors)):
+            self._covariances[i] = (1 - LAMBDA) * self._covariances[i] + LAMBDA * my_error * predictor_errors[i]
 
     def mutate(self, mutation_rate: float = 0.05):
         self._a += np.random.normal(0, mutation_rate)
@@ -50,7 +59,10 @@ class Predictor:
         return clone
 
     def get_variance(self):
-        return self._variance
+        return self._covariances[self._asset_idx]
+    
+    def get_covariances(self) -> np.ndarray:
+        return self._covariances
 
     def get_asset_name(self):
         return self._asset_name

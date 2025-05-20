@@ -52,7 +52,8 @@ class Auction:
         delta = self._demand - self._supply
         cleared = self.cleared()
         if not cleared:
-            self._price = self._price - self._k * (delta/self._slope)
+            #self._price = self._price - self._k * (delta/self._slope) reintroduce when slope is fixed for multiasset
+            self._price = self._price + self._k * delta
             self._demand = 0
         return self._price, cleared
     
