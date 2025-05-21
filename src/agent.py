@@ -7,7 +7,7 @@ from predictor import Predictor
 from typing import Any, Dict, List, Tuple
 
 class Agent:
-    def __init__(self, id: str, cash: float, ):
+    def __init__(self, id: str, cash: float):
         self._id = id
         # holdings in each of the three assets
         self._portfolio = {"asset_1": 0, "asset_2": 0, "asset_3": 0}
@@ -65,6 +65,7 @@ class Agent:
                 if p.matches(bitstring[idx])
             ]
             
+            
             if not active_predictors:
                 # No signal ⇒ no position
                 self._demand[asset] = 0
@@ -82,7 +83,8 @@ class Agent:
             target_h = (expected - price * (1 + INTEREST_RATE)) / (
                 RISK_AVERSION * variance
             )
-            qty = int(np.round(target_h))
+            qty = self._bound_demand(int(np.round(target_h)), price)
+            print(f"Agent {self._id} - Asset: {asset}, Demand: {qty} at Price: {price}")
 
             # Record for portfolio update
             self._demand[asset] = qty
@@ -91,6 +93,9 @@ class Agent:
             demands_and_slope[asset] = (qty, slope)
             
         return demands_and_slope
+    
+    def _bound_demand(self, demand, price) -> None:
+        return min(max(demand, 0), self._cash / price)
     
     def compute_wealth(self) -> float:
         """Calculate total wealth = cash + market value of all holdings."""
@@ -124,6 +129,11 @@ class Agent:
 
     def _update_portfolio(self):
         """Re‐balance portfolio to match last period’s submitted demand."""
+        asset_deltas = {asset: self._demand[asset] - self._portfolio[asset] for asset in self._portfolio}
+        self._cash -= sum(
+            asset_deltas[asset] * self._latest_observation["prices"][asset]
+            for asset in self._portfolio if asset in self._latest_observation["prices"]
+        )
         self._portfolio = self._demand.copy()
 
     def _update_predictors(self) -> None:

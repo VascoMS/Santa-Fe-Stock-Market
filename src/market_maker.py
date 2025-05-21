@@ -9,7 +9,7 @@ class Asset:
         self._dividend_mean = initial_dividend
         self._prev_dividend_delta = self._dividend - self._dividend_mean
         self._price = initial_dividend / INTEREST_RATE # setting initial price to fair price of d(t)/r 
-        self._price_history = deque([self._price]) # Store last 100 prices
+        self._price_history = deque([self._price]) 
         self._rho = rho # recommended -> 0.9 for d = 2 r = 0.02
         self._alpha = alpha # recommended -> 0.15 for d = 2 r = 0.02
         self._supply = supply
@@ -42,26 +42,26 @@ class Auction:
         self._supply = asset.get_supply()
         self._demand = 0
         self._slope = 0
+        self._cleared = False
         self._k = k
     
     def add_demand(self, amount: int, slope: int):
         self._demand += amount
         self._slope += slope
+        
     
     def determine_price(self) -> Tuple[int, bool]:
         delta = self._demand - self._supply
-        cleared = self.cleared()
-        if not cleared:
+        self._cleared = abs(self._demand - self._supply) < 1e-2
+        if not self._cleared:
             self._price = self._price - self._k * (delta/self._slope)
+            print(f"Ran auction : Price = {self._price}, Demand = {self._demand}, Supply = {self._supply}")
             self._demand = 0
-        return self._price, cleared
-    
-    def clear_demand(self):
-        self._demand = 0
-        self._slope = 0
+            self._slope = 0
+        return max(self._price, 0)
     
     def cleared(self) -> bool:
-        return self._demand - self._supply < 1e-2
+        return self._cleared
 
 class MarketMaker:
     K = 0.001
@@ -78,18 +78,18 @@ class MarketMaker:
             alpha=ASSET_1_ALPHA,
             supply=ASSET_1_SUPPLY
         ),
-        "asset_2": Asset(
-            initial_dividend=ASSET_2_INITIAL_DIVIDEND,
-            rho=ASSET_2_RHO,
-            alpha=ASSET_2_ALPHA,
-            supply=ASSET_2_SUPPLY
-        ),
-        "asset_3": Asset(
-            initial_dividend=ASSET_3_INITIAL_DIVIDEND,
-            rho=ASSET_3_RHO,
-            alpha=ASSET_3_ALPHA,
-            supply=ASSET_3_SUPPLY
-        )
+        # "asset_2": Asset(
+        #     initial_dividend=ASSET_2_INITIAL_DIVIDEND,
+        #     rho=ASSET_2_RHO,
+        #     alpha=ASSET_2_ALPHA,
+        #     supply=ASSET_2_SUPPLY
+        # ),
+        # "asset_3": Asset(
+        #     initial_dividend=ASSET_3_INITIAL_DIVIDEND,
+        #     rho=ASSET_3_RHO,
+        #     alpha=ASSET_3_ALPHA,
+        #     supply=ASSET_3_SUPPLY
+        # )
     }
     
     def add_demand(self, asset: str, amount: int, slope:int):
@@ -102,8 +102,7 @@ class MarketMaker:
         for asset in assets:
             auction = self._auctions[asset]
             if auction and not self._auctions[asset].cleared():
-                auction.clear_demand()
-                price, _ = self._auctions[asset].determine_price()
+                price = self._auctions[asset].determine_price()
                 auction_prices[asset] = price
         return auction_prices
     
@@ -112,6 +111,7 @@ class MarketMaker:
             auction = self._auctions[asset_id]
             if auction and auction.cleared():
                 asset.set_price(auction._price)
+                print(f"Auction cleared for {asset_id}: Price = {auction._price}, Demand = {auction._demand}, Supply = {auction._supply}")
             
     def start_auctions(self):
         for asset_id, asset in self._assets.items():

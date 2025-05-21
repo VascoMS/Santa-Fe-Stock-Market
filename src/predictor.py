@@ -5,12 +5,12 @@ from constants import NUM_INDICATORS, LAMBDA
 class Predictor:
     def __init__(self, asset_name: str, memory_length: int = 50):
         self._asset_name = asset_name
-        self._a = np.random.uniform(0.4, 0.6)
-        self._b = np.random.uniform(0.4, 0.6)
+        self._a = np.random.uniform(0.7, 1.2)
+        self._b = np.random.uniform(-10, 10)
         self._variance = 1.0
         self._last_prediction = None
 
-        self._condition_string = [random.choice(['0', '1', '#']) for _ in range(NUM_INDICATORS)]
+        self._condition_string = [np.random.choice(['0', '1', '#'], p=[0.2, 0.1, 0.7]) for _ in range(NUM_INDICATORS)]
 
     def matches(self, bitstring: np.ndarray) -> bool:
         for cond_bit, world_bit in zip(self._condition_string, bitstring):

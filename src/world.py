@@ -9,7 +9,7 @@ class World:
         # Initialize market maker and agents
         self._market_maker = MarketMaker()
         # Create agents with an initial cash endowment
-        self._agents = [Agent(str(i), AGENT_INITIAL_CASH, self._market_maker) for i in range(NUM_AGENTS)]
+        self._agents = [Agent(str(i), AGENT_INITIAL_CASH) for i in range(NUM_AGENTS)]
         # State object for computing world bits
         self._state = State()
     
@@ -81,10 +81,10 @@ class State:
     def __init__(self):
         self._asset_indexes = {
             "asset_1": 0,
-            "asset_2": 1,
-            "asset_3": 2
+            # "asset_2": 1,
+            # "asset_3": 2
         }
-        self._bitstring = np.zeros((3, NUM_INDICATORS))
+        self._bitstring = np.zeros((NUM_ASSETS, NUM_INDICATORS))
     
     def update_bitstring(self, prices, price_histories, dividends):
         """
@@ -100,22 +100,26 @@ class State:
         """
         def compute_moving_average(price_history, n_steps):
             if n_steps > len(price_history):
-                return np.mean(price_history)
+                return np.mean(np.array(price_history))
             else:
-                return np.mean(price_history[-n_steps:]) 
+                return np.mean(np.array(price_history)[-n_steps:]) 
+        
+        fundamental_thresholds = [0.25, 0.5, 0.75, 0.875, 1.0, 1.25]
+        ma_windows = [5, 10, 100, 500]
 
         for asset, index in self._asset_indexes.items():
             price = prices[asset]
             price_history = price_histories[asset]
             dividend = dividends[asset]
 
-            self._bitstring[index, 0] = INTEREST_RATE * price / dividend > 0.75
-            self._bitstring[index, 1] = INTEREST_RATE * price / dividend > 1
-            self._bitstring[index, 2] = INTEREST_RATE * price / dividend > 1.25
-            self._bitstring[index, 3] = price > compute_moving_average(price_history, 10)
-            self._bitstring[index, 4] = price > compute_moving_average(price_history, 100)
-            self._bitstring[index, 5] = price > compute_moving_average(price_history, 500)
-            self._bitstring[index, 6] = True
+            for i in range(len(fundamental_thresholds)):
+                self._bitstring[index, i] = INTEREST_RATE * price / dividend > fundamental_thresholds[i]
+            
+            for i in range(len(ma_windows)):
+                self._bitstring[index, i + len(fundamental_thresholds)] = price > compute_moving_average(price_history, ma_windows[i])
+
+            self._bitstring[index, -1] = True
+            self._bitstring[index, -2] = False
         
         return self._bitstring
 
