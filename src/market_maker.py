@@ -55,7 +55,7 @@ class Auction:
         self._cleared = abs(self._demand - self._supply) < 1e-2
         if not self._cleared:
             self._price = self._price - self._k * (delta/self._slope)
-            print(f"Ran auction : Price = {self._price}, Demand = {self._demand}, Supply = {self._supply}")
+            #print(f"Ran auction : Price = {self._price}, Demand = {self._demand}, Supply = {self._supply}")
             self._demand = 0
             self._slope = 0
         return max(self._price, 0)
@@ -111,7 +111,7 @@ class MarketMaker:
             auction = self._auctions[asset_id]
             if auction and auction.cleared():
                 asset.set_price(auction._price)
-                print(f"\n\nAuction cleared for {asset_id}: Price = {auction._price}, Demand = {auction._demand}, Supply = {auction._supply}\n\n")
+                print(f"Auction cleared for {asset_id}: Price = {auction._price}, Demand = {auction._demand}, Supply = {auction._supply}")
             
     def start_auctions(self):
         for asset_id, asset in self._assets.items():

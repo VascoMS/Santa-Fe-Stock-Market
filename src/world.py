@@ -59,7 +59,8 @@ class World:
 
             uncleared_assets = self._market_maker.get_uncleared_assets()
         
-        agent._auction_begining = True
+        for agent in self._agents:
+            agent._auction_begining = True
 
         # Update prices and dividends for all assets
         self._market_maker.finalize_auctions()

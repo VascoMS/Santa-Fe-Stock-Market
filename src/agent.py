@@ -82,13 +82,14 @@ class Agent:
                 # One-step ahead forecast of total payout
                 self._expected = best_p.predict(price, dividend)
                 self._variance = best_p.get_variance()
+                print(f"Agent {self._id} is computing new expected value and variance for asset {asset}: Expected = {self._expected}, Variance = {self._variance}")
 
             # CARA-optimal target shares
             target_h = (self._expected - price * (1 + INTEREST_RATE)) / (
                 RISK_AVERSION * self._variance
             )
             qty = self._bound_demand(int(np.round(target_h)), self._expected)
-            # print(f"Agent {self._id} - Asset: {asset}, Expected: {self._expected}, Price: {price}, Target_h: {target_h}, Demand: {qty}")
+            #print(f"Agent {self._id} - Asset: {asset}, Expected: {self._expected}, Price: {price}, Target_h: {target_h}, Demand: {qty}")
 
             # Record for portfolio update
             self._demand[asset] = qty
