@@ -64,7 +64,7 @@ class Auction:
         return self._cleared
 
 class MarketMaker:
-    K = 0.001
+    K = 0.01
 
     def __init__(self):
         self._assets: Dict[str, Asset] = self._create_assets()
@@ -111,7 +111,7 @@ class MarketMaker:
             auction = self._auctions[asset_id]
             if auction and auction.cleared():
                 asset.set_price(auction._price)
-                print(f"Auction cleared for {asset_id}: Price = {auction._price}, Demand = {auction._demand}, Supply = {auction._supply}")
+                print(f"\n\nAuction cleared for {asset_id}: Price = {auction._price}, Demand = {auction._demand}, Supply = {auction._supply}\n\n")
             
     def start_auctions(self):
         for asset_id, asset in self._assets.items():

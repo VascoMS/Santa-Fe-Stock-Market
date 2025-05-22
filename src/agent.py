@@ -24,6 +24,9 @@ class Agent:
             self._predictors[asset] = [
                 Predictor(asset) for _ in range(NUM_PREDICTORS)
             ]
+        self._auction_begining = True
+        self._expected = 0
+        self._variance = 0
 
     def observe(self, observation: Dict[str, Any]) -> None:
         """
@@ -75,27 +78,28 @@ class Agent:
             # Choose the most precise predictor
             best_p = min(active_predictors, key=lambda p: p.get_variance())
 
-            # One-step ahead forecast of total payout
-            expected = best_p.predict(price, dividend)
-            variance = best_p.get_variance()
+            if self._auction_begining:
+                # One-step ahead forecast of total payout
+                self._expected = best_p.predict(price, dividend)
+                self._variance = best_p.get_variance()
 
             # CARA-optimal target shares
-            target_h = (expected - price * (1 + INTEREST_RATE)) / (
-                RISK_AVERSION * variance
+            target_h = (self._expected - price * (1 + INTEREST_RATE)) / (
+                RISK_AVERSION * self._variance
             )
-            qty = self._bound_demand(int(np.round(target_h)), price)
-            print(f"Agent {self._id} - Asset: {asset}, Demand: {qty} at Price: {price}")
+            qty = self._bound_demand(int(np.round(target_h)), self._expected)
+            # print(f"Agent {self._id} - Asset: {asset}, Expected: {self._expected}, Price: {price}, Target_h: {target_h}, Demand: {qty}")
 
             # Record for portfolio update
             self._demand[asset] = qty
             # Submit to auction 
-            slope = (best_p.get_parameter_a() - (1 + INTEREST_RATE)) / (RISK_AVERSION * variance) # dh/dp
+            slope = (best_p.get_parameter_a() - (1 + INTEREST_RATE)) / (RISK_AVERSION * self._variance) # dh/dp
             demands_and_slope[asset] = (qty, slope)
             
         return demands_and_slope
     
     def _bound_demand(self, demand, price) -> None:
-        return min(max(demand, 0), self._cash / price)
+        return int(min(max(demand, 0), self._cash / price))
     
     def compute_wealth(self) -> float:
         """Calculate total wealth = cash + market value of all holdings."""
