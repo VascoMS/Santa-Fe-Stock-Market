@@ -1,5 +1,5 @@
 # Simulation parameters
-NUM_AGENTS = 10
+NUM_AGENTS = 20
 NUM_STEPS = 5000
 NUM_INDICATORS = 12
 NUM_PREDICTORS = 100
@@ -7,22 +7,21 @@ NUM_ASSETS = 1
 
 # Global Agent parameters
 
-AGENT_INITIAL_CASH = 1000
+AGENT_INITIAL_CASH = 500
 RISK_AVERSION     = 1.0  
-GENETIC_EXPLORATION_PARAMETER = 500 # How often the genetic algorithm runs (K in the paper)
+GENETIC_EXPLORATION_PARAMETER = 250 # How often the genetic algorithm runs (K in the paper)
 
 # Global Asset parameters
-INTEREST_RATE = 0.02
+INTEREST_RATE = 0.05
 
 # Predictor parameters
 LAMBDA = 1/75
 
 # Asset 1 specific parameters
-ASSET_1_SUPPLY = 100
-ASSET_1_INITIAL_CASH = 1000
+ASSET_1_SUPPLY = 200
 ASSET_1_INITIAL_DIVIDEND = 2.0
 ASSET_1_RHO = 0.9
-ASSET_1_ALPHA = 0.15
+ASSET_1_ALPHA = 0.1
 
 # Asset 2 specific parameters
 ASSET_2_SUPPLY = 100

@@ -50,12 +50,14 @@ class Auction:
         self._slope += slope
         
     
-    def determine_price(self) -> Tuple[int, bool]:
+    def determine_price(self) -> int:
         delta = self._demand - self._supply
-        self._cleared = abs(self._demand - self._supply) < 1e-2
+        self._cleared = abs(delta) < 1e-2
         if not self._cleared:
+            if abs(self._slope) < 1e-3:
+                self._slope = -1e-3 if self._slope < 0 else 1e-3
             self._price = self._price - self._k * (delta/self._slope)
-            #print(f"Ran auction : Price = {self._price}, Demand = {self._demand}, Supply = {self._supply}")
+            print(f"Ran auction : Price = {self._price}, Demand = {self._demand}, Supply = {self._supply}")
             self._demand = 0
             self._slope = 0
         return max(self._price, 0)
@@ -142,8 +144,9 @@ class MarketMaker:
         return [asset for asset, auction in self._auctions.items() if not auction.cleared()]
     
     def update_dividends(self):
-        for asset in self._assets.values():
+        for id, asset in self._assets.items():
             asset.update_dividend()
+            print(f"Updated dividend for {id}: {asset.get_dividend()}")
     
     def clear_auctions(self, assets: List[str]):
         for asset in assets:

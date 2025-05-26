@@ -41,7 +41,7 @@ class World:
                 agent.observe(observation)
                 # Get the agent's action
                 demands_and_slope = agent.act()
-                agent._auction_begining = False
+                agent._auction_beginning = False
                 
                 # Submit demands to market maker
                 for asset, (demand, slope) in demands_and_slope.items():
@@ -60,7 +60,7 @@ class World:
             uncleared_assets = self._market_maker.get_uncleared_assets()
         
         for agent in self._agents:
-            agent._auction_begining = True
+            agent._auction_beginning = True
 
         # Update prices and dividends for all assets
         self._market_maker.finalize_auctions()
@@ -76,6 +76,7 @@ class World:
         5. Agents update cash, portfolios, and predictor performance
         """
         for t in range(NUM_STEPS):
+            print(f"Step {t+1}/{NUM_STEPS}")
             # 1. Start new auctions    
             self._run_auctions()
             # 2. Update agents

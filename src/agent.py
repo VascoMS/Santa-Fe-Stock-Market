@@ -5,10 +5,12 @@ from market_maker import MarketMaker
 from constants import *
 from predictor import Predictor
 from typing import Any, Dict, List, Tuple
+import random
 
 class Agent:
     def __init__(self, id: str, cash: float):
         self._id = id
+        random.random()
         # holdings in each of the three assets
         self._portfolio = {"asset_1": 0, "asset_2": 0, "asset_3": 0}
         # cash on hand
@@ -24,9 +26,9 @@ class Agent:
             self._predictors[asset] = [
                 Predictor(asset) for _ in range(NUM_PREDICTORS)
             ]
-        self._auction_begining = True
+        self._auction_beginning = True
         self._expected = 0
-        self._variance = 0
+        self._latest_predictor = None
 
     def observe(self, observation: Dict[str, Any]) -> None:
         """
@@ -62,45 +64,45 @@ class Agent:
             price = prices[asset]
             dividend = dividends[asset]
 
-            # Pick predictors that "fire" on the current bitstring
-            active_predictors = [
-                p for p in self._predictors[asset]
-                if p.matches(bitstring[idx])
-            ]
-            
-            
-            if not active_predictors:
-                # No signal ⇒ no position
-                self._demand[asset] = 0
-                demands_and_slope[asset] = (0, 0)
-                continue
+            if self._auction_beginning:
+                # Pick predictors that "fire" on the current bitstring
+                active_predictors = [
+                    p for p in self._predictors[asset]
+                    if p.matches(bitstring[idx])
+                ]
+                
+                
+                if not active_predictors:
+                    # No signal ⇒ no position
+                    self._demand[asset] = 0
+                    demands_and_slope[asset] = (0, 0)
+                    continue
 
-            # Choose the most precise predictor
-            best_p = min(active_predictors, key=lambda p: p.get_variance())
-
-            if self._auction_begining:
+                # Choose the most precise predictor
+                best_p = min(active_predictors, key=lambda p: p.get_variance())
                 # One-step ahead forecast of total payout
                 self._expected = best_p.predict(price, dividend)
-                self._variance = best_p.get_variance()
-                print(f"Agent {self._id} is computing new expected value and variance for asset {asset}: Expected = {self._expected}, Variance = {self._variance}")
+                self._latest_predictor = best_p
+
+                print(f"Agent {self._id} is computing new expected value and variance for asset {asset}: Expected = {self._expected}, Variance = {self._latest_predictor.get_variance()}")
 
             # CARA-optimal target shares
             target_h = (self._expected - price * (1 + INTEREST_RATE)) / (
-                RISK_AVERSION * self._variance
+                RISK_AVERSION * self._latest_predictor.get_variance()
             )
-            qty = self._bound_demand(int(np.round(target_h)), self._expected)
-            #print(f"Agent {self._id} - Asset: {asset}, Expected: {self._expected}, Price: {price}, Target_h: {target_h}, Demand: {qty}")
+            qty = self._bound_demand(np.round(target_h, 2), self._portfolio[asset], price)
+            print(f"Agent {self._id} - Asset: {asset}, Expected: {self._expected}, Price: {price}, Target_h: ({self._expected} - {price} * (1 + {INTEREST_RATE})) / ({RISK_AVERSION} * {self._latest_predictor.get_variance()}) = {target_h}, Demand: {qty}")
 
             # Record for portfolio update
             self._demand[asset] = qty
             # Submit to auction 
-            slope = (best_p.get_parameter_a() - (1 + INTEREST_RATE)) / (RISK_AVERSION * self._variance) # dh/dp
+            slope = (self._latest_predictor.get_parameter_a() - (1 + INTEREST_RATE)) / (RISK_AVERSION * self._latest_predictor.get_variance()) # dh/dp
             demands_and_slope[asset] = (qty, slope)
             
         return demands_and_slope
     
-    def _bound_demand(self, demand, price) -> None:
-        return int(min(max(demand, 0), self._cash / price))
+    def _bound_demand(self, demand, current_holding, price) -> None:
+        return min(max(demand, 0), self._cash/price + current_holding)
     
     def compute_wealth(self) -> float:
         """Calculate total wealth = cash + market value of all holdings."""
@@ -161,7 +163,7 @@ class Agent:
                     predictor.update(true_price, true_dividend)
                     
                 # Occasionally evolve predictors
-                if np.random.rand() < 1 / GENETIC_EXPLORATION_PARAMETER:
+                if random.random() < (1.0 / GENETIC_EXPLORATION_PARAMETER):
                     self._evolve_predictors(asset)
     
     def update(self):
