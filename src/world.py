@@ -12,6 +12,7 @@ class World:
         self._agents = [Agent(str(i), AGENT_INITIAL_CASH) for i in range(NUM_AGENTS)]
         # State object for computing world bits
         self._state = State()
+
     
     def _run_auctions(self):
         # 1. Launch new auctions
@@ -25,7 +26,10 @@ class World:
         # 2. Compute current information bits
         bits = self._state.update_bitstring(prices, price_histories, dividends) # shape (3, NUM_INDICATORS)    
 
-        while uncleared_assets:
+        i = 0
+        
+        while uncleared_assets and i < MAX_AUCTION_ITERATIONS:
+            i += 1
             # Prepare the observation for agents
             observation = {
                 "bitstring": bits,
@@ -61,8 +65,10 @@ class World:
         
         for agent in self._agents:
             agent._auction_beginning = True
+        #print(f"Auctions cleared after {i} iterations.")
 
         # Update prices and dividends for all assets
+        print(f"Market cleared: {len(uncleared_assets) == 0}")
         self._market_maker.finalize_auctions()
         self._market_maker.update_dividends()
 
@@ -83,7 +89,30 @@ class World:
             for agent in self._agents:
                 agent.update()
                 # Print agent portfolio and cash
-                print(f"Agent {agent._id} Portfolio: {agent._portfolio}, Cash: {agent._cash}")
+                #print(f"Agent {agent._id} Portfolio: {agent._portfolio}, Cash: {agent._cash}")
+            if t % 1000 == 0 and t > 0:
+                self._plot_prices(self._market_maker.get_all_price_histories(), t)
+    
+    def _plot_prices(self, prices: dict, t):
+        """
+        Plot the price history of all assets.
+        
+        Parameters:
+        - prices: Dictionary mapping asset IDs to lists of historical prices
+        """
+        import matplotlib.pyplot as plt
+
+        for asset, price_history in prices.items():
+            plt.figure()  # Start a new figure
+            plt.plot(range(len(price_history)), price_history, label=asset)
+            plt.xlabel('Time Step')
+            plt.ylabel('Price')
+            plt.title(f'{asset} Price History')
+            plt.legend()
+            plt.savefig(f'plots/{asset}_{t}_price_history.png')  # Save with a filename
+            plt.close()  # Close the figure to free memory
+
+
 
     
 class State:

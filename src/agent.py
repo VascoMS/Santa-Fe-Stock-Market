@@ -73,9 +73,7 @@ class Agent:
                 
                 
                 if not active_predictors:
-                    # No signal ⇒ no position
-                    self._demand[asset] = 0
-                    demands_and_slope[asset] = (0, 0)
+                    #print(f"Agent {self._id} found no active predictors for asset {asset}.")
                     continue
 
                 # Choose the most precise predictor
@@ -83,20 +81,20 @@ class Agent:
                 # One-step ahead forecast of total payout
                 self._expected = best_p.predict(price, dividend)
                 self._latest_predictor = best_p
-
-                print(f"Agent {self._id} is computing new expected value and variance for asset {asset}: Expected = {self._expected}, Variance = {self._latest_predictor.get_variance()}")
+                #print(f"Agent {self._id} is computing new expected value and variance for asset {asset}: Expected = {self._expected}, Variance = {self._latest_predictor.get_variance()}")
 
             # CARA-optimal target shares
             target_h = (self._expected - price * (1 + INTEREST_RATE)) / (
                 RISK_AVERSION * self._latest_predictor.get_variance()
             )
             qty = self._bound_demand(np.round(target_h, 2), self._portfolio[asset], price)
-            print(f"Agent {self._id} - Asset: {asset}, Expected: {self._expected}, Price: {price}, Target_h: ({self._expected} - {price} * (1 + {INTEREST_RATE})) / ({RISK_AVERSION} * {self._latest_predictor.get_variance()}) = {target_h}, Demand: {qty}")
+            #print(f"Agent {self._id} - Asset: {asset}, Expected: {self._expected}, Price: {price}, Target_h: ({self._expected} - {price} * (1 + {INTEREST_RATE})) / ({RISK_AVERSION} * {self._latest_predictor.get_variance()}) = {target_h}, Demand: {qty}, a: {self._latest_predictor.get_parameter_a()}, b: {self._latest_predictor.get_parameter_b()}")
 
             # Record for portfolio update
             self._demand[asset] = qty
             # Submit to auction 
             slope = (self._latest_predictor.get_parameter_a() - (1 + INTEREST_RATE)) / (RISK_AVERSION * self._latest_predictor.get_variance()) # dh/dp
+            #print(f"Agent {self._id} - Asset: {asset}, Slope: {slope}")
             demands_and_slope[asset] = (qty, slope)
             
         return demands_and_slope

@@ -8,11 +8,12 @@ class Asset:
         self._dividend = initial_dividend
         self._dividend_mean = initial_dividend
         self._prev_dividend_delta = self._dividend - self._dividend_mean
-        self._price = initial_dividend / INTEREST_RATE # setting initial price to fair price of d(t)/r 
+        self._price = initial_dividend / INTEREST_RATE * 0.8
         self._price_history = deque([self._price]) 
         self._rho = rho # recommended -> 0.9 for d = 2 r = 0.02
         self._alpha = alpha # recommended -> 0.15 for d = 2 r = 0.02
         self._supply = supply
+
 
     def update_dividend(self) -> float:
         delta = self._rho * self._prev_dividend_delta + self._alpha * np.random.normal(loc=0, scale=1)
@@ -52,15 +53,15 @@ class Auction:
     
     def determine_price(self) -> int:
         delta = self._demand - self._supply
-        self._cleared = abs(delta) < 1e-2
+        self._cleared = abs(delta) <= 0.1
         if not self._cleared:
             if abs(self._slope) < 1e-3:
                 self._slope = -1e-3 if self._slope < 0 else 1e-3
-            self._price = self._price - self._k * (delta/self._slope)
-            print(f"Ran auction : Price = {self._price}, Demand = {self._demand}, Supply = {self._supply}")
+            self._price = max(0.01, self._price - self._k * (delta/self._slope))
+            #print(f"Ran auction : Price = {self._price}, Demand = {self._demand}, Supply = {self._supply}, Slope = {self._slope}, Delta = {delta}")
             self._demand = 0
             self._slope = 0
-        return max(self._price, 0)
+        return self._price
     
     def cleared(self) -> bool:
         return self._cleared
@@ -111,9 +112,9 @@ class MarketMaker:
     def finalize_auctions(self):
         for asset_id, asset in self._assets.items():
             auction = self._auctions[asset_id]
-            if auction and auction.cleared():
+            if auction:
                 asset.set_price(auction._price)
-                print(f"Auction cleared for {asset_id}: Price = {auction._price}, Demand = {auction._demand}, Supply = {auction._supply}")
+                #print(f"Auction cleared for {asset_id}: Price = {auction._price}, Demand = {auction._demand}, Supply = {auction._supply}")
             
     def start_auctions(self):
         for asset_id, asset in self._assets.items():
@@ -146,7 +147,7 @@ class MarketMaker:
     def update_dividends(self):
         for id, asset in self._assets.items():
             asset.update_dividend()
-            print(f"Updated dividend for {id}: {asset.get_dividend()}")
+            #print(f"Updated dividend for {id}: {asset.get_dividend()}")
     
     def clear_auctions(self, assets: List[str]):
         for asset in assets:
