@@ -175,6 +175,40 @@ class Agent:
         
         # Update predictors
         self._update_predictors()
+
+    def get_parent_for_evolution(self, asset: str) -> Predictor:
+        candidates = np.random.choice(self._predictors[asset], size=NUM_PREDICTORS_TOURNAMENT)
+        return max(candidates, key=lambda p: p.calculate_fitness())
+    
+    def crossover(self, parent_1: Predictor, parent_2: Predictor) -> Predictor:
+        crossover_type = np.random.choice([0, 1, 2])
+        child = Predictor(parent_1.get_asset_name())
+        if crossover_type == 0:
+            # Uniform crossover
+            parent_for_a = np.random.choice([parent_1, parent_2])
+            child._a = parent_for_a.get_parameter_a()
+            if parent_for_a == parent_1:
+                child._b = parent_2.get_parameter_b()
+            else:
+                child._b = parent_1.get_parameter_b()
+        elif crossover_type == 1:
+            # Linear combination
+            a_term = np.random.rand()
+            b_term = np.random.rand()
+            child._a = parent_1.get_parameter_a() * a_term + parent_2.get_parameter_a() * (1 - a_term)
+            child._b = parent_1.get_parameter_b() * b_term + parent_2.get_parameter_b() * (1 - b_term)
+        else:
+            # Complete clone of one parent
+            parent_choice = np.random.choice([parent_1, parent_2])
+            child._a = parent_choice.get_parameter_a()
+            child._b = parent_choice.get_parameter_b()
+        
+        for i in range(len(parent_1._condition_string)):
+            if random.random() < 0.5:
+                child._condition_string[i] = parent_1._condition_string[i]
+            else:
+                child._condition_string[i] = parent_2._condition_string[i]
+            
             
     def _evolve_predictors(self, asset: str) -> None:
         """
@@ -184,16 +218,23 @@ class Agent:
         # Sort predictors by variance (ascending: low to high)
         sorted_predictors = sorted(
             self._predictors[asset],
-            key=lambda p: p.get_variance()
+            key=lambda p: p.calculate_fitness()
         )
 
         num_to_replace = int(0.2 * len(sorted_predictors))
 
-        # Select top 20% (lowest variance)
-        best = sorted_predictors[:num_to_replace]
-
         # Select bottom 20% (highest variance)
         worst = sorted_predictors[-num_to_replace:]
+
+        for predictor in worst:
+            if random.random() <= CROSSOVER_RATE:
+                # Occasionally remove a predictor completely
+                self._predictors[asset].remove(predictor)
+                parent_1 = self.get_parent_for_evolution(asset)
+                parent_2 = self.get_parent_for_evolution(asset)
+
+
+
 
         # Create mutated clones of the best predictors
         mutated_clones = []

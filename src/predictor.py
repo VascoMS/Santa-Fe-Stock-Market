@@ -1,6 +1,6 @@
 import random
 import numpy as np
-from constants import NUM_INDICATORS, LAMBDA
+from constants import NUM_INDICATORS, LAMBDA, M, C
 
 class Predictor:
     def __init__(self, asset_name: str):
@@ -10,7 +10,7 @@ class Predictor:
         self._variance = 4.0
         self._last_prediction = None
 
-        self._condition_string = [np.random.choice(['0', '1', '#'], p=[0.2, 0.1, 0.7]) for _ in range(NUM_INDICATORS)]
+        self._condition_string = [np.random.choice(['0', '1', '#'], p=[0.1, 0.1, 0.8]) for _ in range(NUM_INDICATORS)]
 
     def matches(self, bitstring: np.ndarray) -> bool:
         for cond_bit, world_bit in zip(self._condition_string, bitstring):
@@ -34,13 +34,11 @@ class Predictor:
         self._variance = (1 - LAMBDA) * self._variance + LAMBDA * squared_error
 
     def mutate(self, mutation_rate: float = 0.05):
-        self._a += np.random.normal(0, mutation_rate)
-        self._b += np.random.normal(0, mutation_rate)
-        self._a = np.clip(self._a, -2, 2)
-        self._b = np.clip(self._b, -2, 2)
-
-        for i in range(len(self._condition_string)):
-            if random.random() < 0.1:
+        if random.random() <= 0.03:
+            self._a += np.random.normal(-mutation_rate, mutation_rate)
+            self._b += np.random.normal(-mutation_rate, mutation_rate)
+        for i in range(len(self._condition_string) - 2):
+            if random.random() < 0.03:
                 self._condition_string[i] = random.choice(['0', '1', '#'])
 
     def clone(self):
@@ -49,8 +47,13 @@ class Predictor:
         clone._b = self._b
         return clone
 
+
     def get_variance(self):
         return self._variance
+    
+    def calculate_fitness(self):
+        s = sum(1 for bit in self._condition_string if bit == '1' or bit == '0')
+        return M - self._variance - C * s
 
     def get_asset_name(self):
         return self._asset_name
