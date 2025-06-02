@@ -9,7 +9,6 @@ class Predictor:
         self._b = np.random.uniform(-10, 19.002)
         self._variance = 4.0
         self._last_prediction = None
-
         self._condition_string = [np.random.choice(['0', '1', '#'], p=[0.1, 0.1, 0.8]) for _ in range(NUM_INDICATORS)]
 
     def matches(self, bitstring: np.ndarray) -> bool:
@@ -22,6 +21,12 @@ class Predictor:
                 return False
         return True
 
+    @classmethod
+    def generate_default_predictor(cls, asset_name: str):
+        predictor = Predictor(asset_name)
+        predictor._condition_string = ['#'] * NUM_INDICATORS
+        return predictor
+
     def predict(self, current_price: float, current_dividend: float) -> float:
         prediction = self._a * (current_price + current_dividend) + self._b
         self._last_prediction = prediction
@@ -33,18 +38,16 @@ class Predictor:
         squared_error = (self._last_prediction - (true_price + true_dividend)) ** 2
         self._variance = (1 - LAMBDA) * self._variance + LAMBDA * squared_error
 
-    def mutate(self, mutation_rate: float = 0.05):
-        if random.random() <= 0.03:
-            self._a += np.random.normal(-mutation_rate, mutation_rate)
-            self._b += np.random.normal(-mutation_rate, mutation_rate)
-        for i in range(len(self._condition_string) - 2):
-            if random.random() < 0.03:
-                self._condition_string[i] = random.choice(['0', '1', '#'])
+    def mutate_params(self, mutation_rate_a: float = 0.05, mutation_rate_b: float = 0.8):
+        self._a += np.random.normal(-mutation_rate_a, mutation_rate_a)
+        self._b += np.random.normal(-mutation_rate_b, mutation_rate_b)
 
     def clone(self):
         clone = Predictor(self._asset_name)
         clone._a = self._a
         clone._b = self._b
+        clone._variance = self._variance
+        clone._condition_string = self._condition_string.copy()
         return clone
 
 
@@ -63,3 +66,6 @@ class Predictor:
     
     def get_parameter_b(self):
         return self._b
+    
+    def set_condition_string(self, condition_string: list):
+        self._condition_string = condition_string

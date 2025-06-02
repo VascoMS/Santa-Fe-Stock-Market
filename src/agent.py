@@ -1,7 +1,6 @@
 # agent.py
 
 import numpy as np
-from market_maker import MarketMaker
 from constants import *
 from predictor import Predictor
 from typing import Any, Dict, List, Tuple
@@ -20,12 +19,15 @@ class Agent:
 
         self._latest_observation = None
 
+        self._activated_predictors: Dict[str, List[Predictor]] = {"asset_1": [], "asset_2": [], "asset_3": []}
+
         # create a pool of predictors per asset
         self._predictors: Dict[str, List[Predictor]] = {}
         for asset in self._portfolio:
             self._predictors[asset] = [
                 Predictor(asset) for _ in range(NUM_PREDICTORS)
             ]
+        self._default_predictor = Predictor("default")
         self._auction_beginning = True
         self._expected = 0
         self._latest_predictor = None
@@ -71,10 +73,11 @@ class Agent:
                     if p.matches(bitstring[idx])
                 ]
                 
-                
                 if not active_predictors:
                     #print(f"Agent {self._id} found no active predictors for asset {asset}.")
-                    continue
+                    active_predictors = [self._default_predictor]
+                else:
+                    self._activated_predictors[asset] = active_predictors
 
                 # Choose the most precise predictor
                 best_p = min(active_predictors, key=lambda p: p.get_variance())
@@ -157,7 +160,7 @@ class Agent:
                 true_price = prices[asset]
                 true_dividend = dividends[asset]
                 
-                for predictor in self._predictors[asset]:
+                for predictor in self._activated_predictors[asset]:
                     predictor.update(true_price, true_dividend)
                     
                 # Occasionally evolve predictors
@@ -176,8 +179,8 @@ class Agent:
         # Update predictors
         self._update_predictors()
 
-    def get_parent_for_evolution(self, asset: str) -> Predictor:
-        candidates = np.random.choice(self._predictors[asset], size=NUM_PREDICTORS_TOURNAMENT)
+    def get_parent_for_evolution(self, asset: str, eligible_parents: List[Predictor]) -> Predictor:
+        candidates = np.random.choice(eligible_parents, size=NUM_PREDICTORS_TOURNAMENT)
         return max(candidates, key=lambda p: p.calculate_fitness())
     
     def crossover(self, parent_1: Predictor, parent_2: Predictor) -> Predictor:
@@ -208,6 +211,8 @@ class Agent:
                 child._condition_string[i] = parent_1._condition_string[i]
             else:
                 child._condition_string[i] = parent_2._condition_string[i]
+        child._variance = (parent_1.get_variance() + parent_2.get_variance()) / 2
+        return child
             
             
     def _evolve_predictors(self, asset: str) -> None:
@@ -226,24 +231,30 @@ class Agent:
         # Select bottom 20% (highest variance)
         worst = sorted_predictors[-num_to_replace:]
 
+        eligible_parents = sorted_predictors[:-num_to_replace]
+
         for predictor in worst:
             if random.random() <= CROSSOVER_RATE:
-                # Occasionally remove a predictor completely
-                self._predictors[asset].remove(predictor)
-                parent_1 = self.get_parent_for_evolution(asset)
-                parent_2 = self.get_parent_for_evolution(asset)
+                new_predictor = self.crossover(
+                    self.get_parent_for_evolution(asset, eligible_parents),
+                    self.get_parent_for_evolution(asset, eligible_parents),
+                )
+            else:
+                new_predictor = self.get_parent_for_evolution(asset, eligible_parents).clone()
+            if random.random() < 0.03:
+                new_predictor.mutate_params()
+            bit_mutated = False
+            for i in range(len(new_predictor._condition_string)):
+                if random.random() < 0.03:
+                    new_predictor._condition_string[i] = np.random.choice(['0', '1', '#'])
+                    bit_mutated = True
+            if bit_mutated:
+                mean_variance = np.mean([p.get_variance() for p in self._predictors[asset]])
+                new_predictor._variance = mean_variance
+            self._predictors[asset].remove(predictor)
+            self._predictors[asset].append(new_predictor)
 
 
-
-
-        # Create mutated clones of the best predictors
-        mutated_clones = []
-        for predictor in best:
-            clone = predictor.clone()
-            clone.mutate()
-            mutated_clones.append(clone)
-
-        # Remove the worst predictors
-        self._predictors[asset] = [
-            p for p in sorted_predictors if p not in worst
-        ] + mutated_clones
+        
+        # Swap out the worst predictor with the new one
+        

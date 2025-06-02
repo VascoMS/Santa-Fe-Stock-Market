@@ -8,23 +8,23 @@ MAX_AUCTION_ITERATIONS = 200
 M = 1
 C = 0.005
 NUM_PREDICTORS_TOURNAMENT = 5
-CROSSOVER_RATE = 0.3
+CROSSOVER_RATE = 0.1
 
 # Global Agent parameters
 
-AGENT_INITIAL_CASH = 500
+AGENT_INITIAL_CASH = 20000
 RISK_AVERSION     = 0.5
 GENETIC_EXPLORATION_PARAMETER = 250 # How often the genetic algorithm runs (K in the paper)
 
 # Global Asset parameters
-INTEREST_RATE = 0.05
+INTEREST_RATE = 0.1
 
 # Predictor parameters
-LAMBDA = 1/75
+LAMBDA = 1/150
 
 # Asset 1 specific parameters
 ASSET_1_SUPPLY = 25
-ASSET_1_INITIAL_DIVIDEND = 2.0
+ASSET_1_INITIAL_DIVIDEND = 10
 ASSET_1_RHO = 0.9
 ASSET_1_ALPHA = 0.1
 

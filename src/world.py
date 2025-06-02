@@ -81,8 +81,8 @@ class World:
         4. Market clears via auctions: prices and dividends update
         5. Agents update cash, portfolios, and predictor performance
         """
-        for t in range(NUM_STEPS):
-            print(f"Step {t+1}/{NUM_STEPS}")
+        for t in range(1, NUM_STEPS+1):
+            print(f"Step {t}/{NUM_STEPS+1}")
             # 1. Start new auctions    
             self._run_auctions()
             # 2. Update agents
@@ -90,7 +90,7 @@ class World:
                 agent.update()
                 # Print agent portfolio and cash
                 #print(f"Agent {agent._id} Portfolio: {agent._portfolio}, Cash: {agent._cash}")
-            if t % 1000 == 0 and t > 0:
+            if t % 100 == 0 and t > 0:
                 self._plot_prices(self._market_maker.get_all_price_histories(), t)
     
     def _plot_prices(self, prices: dict, t):
