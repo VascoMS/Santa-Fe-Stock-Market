@@ -4,12 +4,10 @@ import numpy as np
 from constants import *
 from predictor import Predictor
 from typing import Any, Dict, List, Tuple
-import random
 
 class Agent:
     def __init__(self, id: str, cash: float):
         self._id = id
-        random.random()
         # holdings in each of the three assets
         self._portfolio = {"asset_1": 0, "asset_2": 0, "asset_3": 0}
         # cash on hand
@@ -20,6 +18,7 @@ class Agent:
         self._latest_observation = None
 
         self._activated_predictors: Dict[str, List[Predictor]] = {"asset_1": [], "asset_2": [], "asset_3": []}
+        self._previous_activated_predictors: Dict[str, List[Predictor]] = {"asset_1": [], "asset_2": [], "asset_3": []}
 
         # create a pool of predictors per asset
         self._predictors: Dict[str, List[Predictor]] = {}
@@ -91,18 +90,24 @@ class Agent:
                 RISK_AVERSION * self._latest_predictor.get_variance()
             )
             qty = self._bound_demand(np.round(target_h, 2), self._portfolio[asset], price)
-            #print(f"Agent {self._id} - Asset: {asset}, Expected: {self._expected}, Price: {price}, Target_h: ({self._expected} - {price} * (1 + {INTEREST_RATE})) / ({RISK_AVERSION} * {self._latest_predictor.get_variance()}) = {target_h}, Demand: {qty}, a: {self._latest_predictor.get_parameter_a()}, b: {self._latest_predictor.get_parameter_b()}")
 
             # Record for portfolio update
             self._demand[asset] = qty
             # Submit to auction 
             slope = (self._latest_predictor.get_parameter_a() - (1 + INTEREST_RATE)) / (RISK_AVERSION * self._latest_predictor.get_variance()) # dh/dp
-            #print(f"Agent {self._id} - Asset: {asset}, Slope: {slope}")
+            print(f"Agent {self._id} - Asset: {asset}, Expected: {self._expected}, Price: {price}, Demand: {qty}, Slope: {slope} a: {self._latest_predictor.get_parameter_a()}, b: {self._latest_predictor.get_parameter_b()} variance: {self._latest_predictor.get_variance()} bitstring: {self._latest_predictor._condition_string}")
             demands_and_slope[asset] = (qty, slope)
             
         return demands_and_slope
     
     def _bound_demand(self, demand, current_holding, price) -> None:
+        delta = demand - current_holding
+        if delta > 10:
+            # If demand is too high, cap it to prevent excessive buying
+            demand = current_holding + 10
+        elif delta < -10:
+            # If demand is too low, cap it to prevent excessive selling
+            demand = current_holding - 10
         return min(max(demand, 0), self._cash/price + current_holding)
     
     def compute_wealth(self) -> float:
@@ -160,11 +165,15 @@ class Agent:
                 true_price = prices[asset]
                 true_dividend = dividends[asset]
                 
-                for predictor in self._activated_predictors[asset]:
+                for predictor in self._previous_activated_predictors[asset]:
                     predictor.update(true_price, true_dividend)
+                
+                # Update the previous activated predictors
+                self._previous_activated_predictors[asset] = self._activated_predictors[asset]
+                self._activated_predictors[asset] = []
                     
                 # Occasionally evolve predictors
-                if random.random() < (1.0 / GENETIC_EXPLORATION_PARAMETER):
+                if np.random.rand() < (1.0 / GENETIC_EXPLORATION_PARAMETER) and MODE != 1:
                     self._evolve_predictors(asset)
     
     def update(self):
@@ -207,7 +216,7 @@ class Agent:
             child._b = parent_choice.get_parameter_b()
         
         for i in range(len(parent_1._condition_string)):
-            if random.random() < 0.5:
+            if np.random.rand() < 0.5:
                 child._condition_string[i] = parent_1._condition_string[i]
             else:
                 child._condition_string[i] = parent_2._condition_string[i]
@@ -234,18 +243,18 @@ class Agent:
         eligible_parents = sorted_predictors[:-num_to_replace]
 
         for predictor in worst:
-            if random.random() <= CROSSOVER_RATE:
+            if np.random.rand() <= CROSSOVER_RATE:
                 new_predictor = self.crossover(
                     self.get_parent_for_evolution(asset, eligible_parents),
                     self.get_parent_for_evolution(asset, eligible_parents),
                 )
             else:
                 new_predictor = self.get_parent_for_evolution(asset, eligible_parents).clone()
-            if random.random() < 0.03:
+            if np.random.rand() < 0.03:
                 new_predictor.mutate_params()
             bit_mutated = False
             for i in range(len(new_predictor._condition_string)):
-                if random.random() < 0.03:
+                if np.random.rand() < 0.03:
                     new_predictor._condition_string[i] = np.random.choice(['0', '1', '#'])
                     bit_mutated = True
             if bit_mutated:
@@ -253,8 +262,4 @@ class Agent:
                 new_predictor._variance = mean_variance
             self._predictors[asset].remove(predictor)
             self._predictors[asset].append(new_predictor)
-
-
-        
-        # Swap out the worst predictor with the new one
         

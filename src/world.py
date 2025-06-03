@@ -57,9 +57,6 @@ class World:
 
             for asset in uncleared_assets:
                 prices[asset] = new_prices[asset]
-                price_histories[asset].append(new_prices[asset])
-
-            bits = self._state.update_bitstring(prices, price_histories, dividends)
 
             uncleared_assets = self._market_maker.get_uncleared_assets()
         
@@ -68,7 +65,7 @@ class World:
         #print(f"Auctions cleared after {i} iterations.")
 
         # Update prices and dividends for all assets
-        print(f"Market cleared: {len(uncleared_assets) == 0}")
+        #print(f"Market cleared: {len(uncleared_assets) == 0}")
         self._market_maker.finalize_auctions()
         self._market_maker.update_dividends()
 
@@ -82,15 +79,15 @@ class World:
         5. Agents update cash, portfolios, and predictor performance
         """
         for t in range(1, NUM_STEPS+1):
-            print(f"Step {t}/{NUM_STEPS+1}")
+            print(f"Step {t}/{NUM_STEPS}")
             # 1. Start new auctions    
             self._run_auctions()
             # 2. Update agents
             for agent in self._agents:
                 agent.update()
                 # Print agent portfolio and cash
-                #print(f"Agent {agent._id} Portfolio: {agent._portfolio}, Cash: {agent._cash}")
-            if t % 100 == 0 and t > 0:
+                #print(f"Agent {agent._id} Portfolio: {agent._portfolio}, Cash: {agent._cash}")    
+            if t % 1000 == 0:
                 self._plot_prices(self._market_maker.get_all_price_histories(), t)
     
     def _plot_prices(self, prices: dict, t):

@@ -2,23 +2,21 @@ from collections import deque
 import numpy as np
 from typing import Dict, Tuple, List
 from constants import *
+from math import sqrt
 
 class Asset:
-    def __init__(self, initial_dividend: float, rho: float, alpha: float, supply: int):
+    def __init__(self, initial_dividend: float, rho: float, supply: int):
         self._dividend = initial_dividend
         self._dividend_mean = initial_dividend
         self._prev_dividend_delta = self._dividend - self._dividend_mean
         self._price = initial_dividend / INTEREST_RATE * 0.8
         self._price_history = deque([self._price]) 
         self._rho = rho # recommended -> 0.9 for d = 2 r = 0.02
-        self._alpha = alpha # recommended -> 0.15 for d = 2 r = 0.02
         self._supply = supply
 
 
     def update_dividend(self) -> float:
-        delta = self._rho * self._prev_dividend_delta + self._alpha * np.random.normal(loc=0, scale=1)
-        self._prev_dividend_delta = delta
-        self._dividend = self._dividend_mean + delta
+        self._dividend = self._dividend_mean + self._rho*(self._dividend - self._dividend_mean) + np.random.normal(0, sqrt(ASSET_1_ERROR_VARIANCE))
         return self._dividend
     
     def get_dividend(self) -> float:
@@ -49,16 +47,16 @@ class Auction:
     def add_demand(self, amount: int, slope: int):
         self._demand += amount
         self._slope += slope
-        
     
     def determine_price(self) -> int:
         delta = self._demand - self._supply
-        self._cleared = abs(delta) <= 0.1
+        self._cleared = abs(delta) <= 0.01
         if not self._cleared:
-            if abs(self._slope) < 1e-3:
-                self._slope = -1e-3 if self._slope < 0 else 1e-3
-            self._price = max(0.01, self._price - self._k * (delta/self._slope))
-            #print(f"Ran auction : Price = {self._price}, Demand = {self._demand}, Supply = {self._supply}, Slope = {self._slope}, Delta = {delta}")
+            if self._slope != 0:
+                self._price = min(max(0.01, self._price - self._k * (delta/self._slope)), 500)
+            else:
+                self._price = min(max(0.01, self._price + self._k*delta), 500)
+            print(f"Ran auction : Price = {self._price}, Demand = {self._demand}, Supply = {self._supply}, Slope = {self._slope}, Demand diff = {delta}")
             self._demand = 0
             self._slope = 0
         return self._price
@@ -67,7 +65,7 @@ class Auction:
         return self._cleared
 
 class MarketMaker:
-    K = 0.01
+    K = 0.1
 
     def __init__(self):
         self._assets: Dict[str, Asset] = self._create_assets()
@@ -78,7 +76,6 @@ class MarketMaker:
         "asset_1": Asset(
             initial_dividend=ASSET_1_INITIAL_DIVIDEND,
             rho=ASSET_1_RHO,
-            alpha=ASSET_1_ALPHA,
             supply=ASSET_1_SUPPLY
         ),
         # "asset_2": Asset(
@@ -114,7 +111,8 @@ class MarketMaker:
             auction = self._auctions[asset_id]
             if auction:
                 asset.set_price(auction._price)
-                #print(f"Auction cleared for {asset_id}: Price = {auction._price}, Demand = {auction._demand}, Supply = {auction._supply}")
+                asset
+                print(f"Auction cleared: Price = {auction._price}, Demand = {auction._demand}, Supply = {auction._supply}")
             
     def start_auctions(self):
         for asset_id, asset in self._assets.items():

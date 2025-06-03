@@ -1,12 +1,12 @@
 import random
 import numpy as np
-from constants import NUM_INDICATORS, LAMBDA, M, C
+from constants import *
 
 class Predictor:
     def __init__(self, asset_name: str):
         self._asset_name = asset_name
-        self._a = np.random.uniform(0.7, 1.2)
-        self._b = np.random.uniform(-10, 19.002)
+        self._a = np.random.uniform(0.7, 1.2) if MODE != 1 else HREE_A
+        self._b = np.random.uniform(-10, 19.002) if MODE != 1 else HREE_B
         self._variance = 4.0
         self._last_prediction = None
         self._condition_string = [np.random.choice(['0', '1', '#'], p=[0.1, 0.1, 0.8]) for _ in range(NUM_INDICATORS)]
