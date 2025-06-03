@@ -20,6 +20,8 @@ class Agent:
         self._activated_predictors: Dict[str, List[Predictor]] = {"asset_1": [], "asset_2": [], "asset_3": []}
         self._previous_activated_predictors: Dict[str, List[Predictor]] = {"asset_1": [], "asset_2": [], "asset_3": []}
 
+        self._indicators_score = np.zeros(NUM_INDICATORS)
+
         # create a pool of predictors per asset
         self._predictors: Dict[str, List[Predictor]] = {}
         for asset in self._portfolio:
@@ -71,6 +73,13 @@ class Agent:
                     p for p in self._predictors[asset]
                     if p.matches(bitstring[idx])
                 ]
+                # Compute the score for each indicator
+                for p in active_predictors:
+                    for i, bit in enumerate(p._condition_string):
+                        if bit == '1':
+                            self._indicators_score[i] += 1
+                        elif bit == '0':
+                            self._indicators_score[i] -= 1
                 
                 if not active_predictors:
                     print(f"Agent {self._id} found no active predictors for asset {asset}.")

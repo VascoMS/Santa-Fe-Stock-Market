@@ -89,6 +89,11 @@ class World:
                 #print(f"Agent {agent._id} Portfolio: {agent._portfolio}, Cash: {agent._cash}")    
             if t % 1000 == 0:
                 self._plot_prices(self._market_maker.get_all_price_histories(), t)
+            for agent in self._agents:
+                # Print final portfolio and cash for each agent
+                print(f"Agent {agent._id} Final Portfolio: {agent._portfolio}, Cash: {agent._cash}")
+                # Print indicator scores for each agent
+                print(f"Agent {agent._id} Indicator Scores: {agent._indicators_score}")
     
     def _plot_prices(self, prices: dict, t):
         """
