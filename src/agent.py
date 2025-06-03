@@ -26,7 +26,7 @@ class Agent:
             self._predictors[asset] = [
                 Predictor(asset) for _ in range(NUM_PREDICTORS)
             ]
-        self._default_predictor = Predictor("default")
+        self._default_predictor = Predictor.generate_default_predictor("default")
         self._auction_beginning = True
         self._expected = 0
         self._latest_predictor = None
@@ -73,11 +73,10 @@ class Agent:
                 ]
                 
                 if not active_predictors:
-                    #print(f"Agent {self._id} found no active predictors for asset {asset}.")
+                    print(f"Agent {self._id} found no active predictors for asset {asset}.")
                     active_predictors = [self._default_predictor]
-                else:
-                    self._activated_predictors[asset] = active_predictors
-
+                
+                self._activated_predictors[asset] = active_predictors
                 # Choose the most precise predictor
                 best_p = min(active_predictors, key=lambda p: p.get_variance())
                 # One-step ahead forecast of total payout
@@ -95,7 +94,7 @@ class Agent:
             self._demand[asset] = qty
             # Submit to auction 
             slope = (self._latest_predictor.get_parameter_a() - (1 + INTEREST_RATE)) / (RISK_AVERSION * self._latest_predictor.get_variance()) # dh/dp
-            print(f"Agent {self._id} - Asset: {asset}, Expected: {self._expected}, Price: {price}, Demand: {qty}, Slope: {slope} a: {self._latest_predictor.get_parameter_a()}, b: {self._latest_predictor.get_parameter_b()} variance: {self._latest_predictor.get_variance()} bitstring: {self._latest_predictor._condition_string}")
+            #print(f"Agent {self._id} - Asset: {asset}, Expected: {self._expected}, Price: {price}, Demand: {qty}, Slope: {slope} a: {self._latest_predictor.get_parameter_a()}, b: {self._latest_predictor.get_parameter_b()} variance: {self._latest_predictor.get_variance()} bitstring: {self._latest_predictor._condition_string}")
             demands_and_slope[asset] = (qty, slope)
             
         return demands_and_slope
@@ -243,13 +242,14 @@ class Agent:
         eligible_parents = sorted_predictors[:-num_to_replace]
 
         for predictor in worst:
+            #print(f"Agent {self._id} is evolving predictor : a: {predictor._a}, b: {predictor._b}, Condition: {predictor._condition_string}, Variance: {predictor.get_variance()}")
             if np.random.rand() <= CROSSOVER_RATE:
                 new_predictor = self.crossover(
                     self.get_parent_for_evolution(asset, eligible_parents),
                     self.get_parent_for_evolution(asset, eligible_parents),
                 )
             else:
-                new_predictor = self.get_parent_for_evolution(asset, eligible_parents).clone()
+                new_predictor = Predictor(asset)
             if np.random.rand() < 0.03:
                 new_predictor.mutate_params()
             bit_mutated = False

@@ -9,7 +9,7 @@ class Asset:
         self._dividend = initial_dividend
         self._dividend_mean = initial_dividend
         self._prev_dividend_delta = self._dividend - self._dividend_mean
-        self._price = initial_dividend / INTEREST_RATE * 0.8
+        self._price = initial_dividend / INTEREST_RATE * 2
         self._price_history = deque([self._price]) 
         self._rho = rho # recommended -> 0.9 for d = 2 r = 0.02
         self._supply = supply
@@ -56,7 +56,7 @@ class Auction:
                 self._price = min(max(0.01, self._price - self._k * (delta/self._slope)), 500)
             else:
                 self._price = min(max(0.01, self._price + self._k*delta), 500)
-            print(f"Ran auction : Price = {self._price}, Demand = {self._demand}, Supply = {self._supply}, Slope = {self._slope}, Demand diff = {delta}")
+            #print(f"Ran auction : Price = {self._price}, Demand = {self._demand}, Supply = {self._supply}, Slope = {self._slope}, Demand diff = {delta}")
             self._demand = 0
             self._slope = 0
         return self._price
@@ -112,7 +112,7 @@ class MarketMaker:
             if auction:
                 asset.set_price(auction._price)
                 asset
-                print(f"Auction cleared: Price = {auction._price}, Demand = {auction._demand}, Supply = {auction._supply}")
+                #print(f"Auction cleared: Price = {auction._price}, Demand = {auction._demand}, Supply = {auction._supply}")
             
     def start_auctions(self):
         for asset_id, asset in self._assets.items():

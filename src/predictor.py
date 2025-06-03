@@ -24,6 +24,8 @@ class Predictor:
     @classmethod
     def generate_default_predictor(cls, asset_name: str):
         predictor = Predictor(asset_name)
+        predictor._a = HREE_A
+        predictor._b = HREE_B
         predictor._condition_string = ['#'] * NUM_INDICATORS
         return predictor
 
@@ -39,8 +41,8 @@ class Predictor:
         self._variance = (1 - LAMBDA) * self._variance + LAMBDA * squared_error
 
     def mutate_params(self, mutation_rate_a: float = 0.05, mutation_rate_b: float = 0.8):
-        self._a += np.random.normal(-mutation_rate_a, mutation_rate_a)
-        self._b += np.random.normal(-mutation_rate_b, mutation_rate_b)
+        self._a += np.random.normal(0, mutation_rate_a)
+        self._b += np.random.normal(0, mutation_rate_b)
 
     def clone(self):
         clone = Predictor(self._asset_name)
@@ -49,7 +51,6 @@ class Predictor:
         clone._variance = self._variance
         clone._condition_string = self._condition_string.copy()
         return clone
-
 
     def get_variance(self):
         return self._variance
@@ -67,5 +68,17 @@ class Predictor:
     def get_parameter_b(self):
         return self._b
     
+    def set_parameter_a(self, a: float):
+        self._a = a
+
+    def set_parameter_b(self, b: float):
+        self._b = b
+    
+    def set_variance(self, variance: float):
+        self._variance = variance
+    
     def set_condition_string(self, condition_string: list):
         self._condition_string = condition_string
+    
+    def set_default_condition_string(self):
+        self._condition_string = ['#'] * NUM_INDICATORS
