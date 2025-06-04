@@ -4,6 +4,9 @@ from typing import Dict, Tuple, List
 from constants import *
 from math import sqrt
 
+SEED = 42
+np.random.seed(SEED)
+
 class Asset:
     def __init__(self, initial_dividend: float, rho: float, supply: int):
         self._dividend = initial_dividend

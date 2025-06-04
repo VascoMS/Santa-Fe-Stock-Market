@@ -5,6 +5,9 @@ from constants import *
 from predictor import Predictor
 from typing import Any, Dict, List, Tuple
 
+SEED = 42
+np.random.seed(SEED)
+
 class Agent:
     def __init__(self, id: str, cash: float):
         self._id = id
@@ -20,7 +23,7 @@ class Agent:
         self._activated_predictors: Dict[str, List[Predictor]] = {"asset_1": [], "asset_2": [], "asset_3": []}
         self._previous_activated_predictors: Dict[str, List[Predictor]] = {"asset_1": [], "asset_2": [], "asset_3": []}
 
-        self._indicators_score = np.zeros(NUM_INDICATORS)
+        self._nr_technical_bits = 0
 
         # create a pool of predictors per asset
         self._predictors: Dict[str, List[Predictor]] = {}
@@ -73,16 +76,9 @@ class Agent:
                     p for p in self._predictors[asset]
                     if p.matches(bitstring[idx])
                 ]
-                # Compute the score for each indicator
-                for p in active_predictors:
-                    for i, bit in enumerate(p._condition_string):
-                        if bit == '1':
-                            self._indicators_score[i] += 1
-                        elif bit == '0':
-                            self._indicators_score[i] -= 1
                 
                 if not active_predictors:
-                    print(f"Agent {self._id} found no active predictors for asset {asset}.")
+                    #print(f"Agent {self._id} found no active predictors for asset {asset}.")
                     active_predictors = [self._default_predictor]
                 
                 self._activated_predictors[asset] = active_predictors

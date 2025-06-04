@@ -3,6 +3,10 @@ import numpy as np
 from market_maker import MarketMaker
 from agent import Agent
 from constants import *
+import matplotlib.pyplot as plt
+
+SEED = 42
+np.random.seed(SEED)
 
 class World:
     def __init__(self):
@@ -78,22 +82,44 @@ class World:
         4. Market clears via auctions: prices and dividends update
         5. Agents update cash, portfolios, and predictor performance
         """
+        avg_technical_bits = []
         for t in range(1, NUM_STEPS+1):
             print(f"Step {t}/{NUM_STEPS}")
             # 1. Start new auctions    
             self._run_auctions()
             # 2. Update agents
+            technical_bits_per_t = 0
             for agent in self._agents:
                 agent.update()
-                # Print agent portfolio and cash
-                #print(f"Agent {agent._id} Portfolio: {agent._portfolio}, Cash: {agent._cash}")    
-            if t % 1000 == 0:
-                self._plot_prices(self._market_maker.get_all_price_histories(), t)
-            for agent in self._agents:
-                # Print final portfolio and cash for each agent
-                print(f"Agent {agent._id} Final Portfolio: {agent._portfolio}, Cash: {agent._cash}")
-                # Print indicator scores for each agent
-                print(f"Agent {agent._id} Indicator Scores: {agent._indicators_score}")
+                for asset, predictors in agent._predictors.items():
+                    # Count technical bits used by the predictor
+                    for predictor in predictors:
+                        technical_bits_per_t += sum(1 for bit in predictor._condition_string[6:10] if bit == '1' or bit == '0')
+            avg_technical_bits.append(technical_bits_per_t / NUM_AGENTS)
+        self._plot_prices(self._market_maker.get_all_price_histories(), NUM_STEPS)
+        self._plot_values(avg_technical_bits, range(NUM_STEPS), "Average Technical Bits Used Per Step", "Time Step", "Average Technical Bits", "plots/avg_technical_bits.png")
+    
+    def _plot_values(self, y_values, x_values, title, xlabel, ylabel, filename):
+        plt.figure(figsize=(10, 5))
+
+        # Calculate step size to place a marker every 4% of x_values
+        step = max(1, int(len(x_values) * 0.04))
+
+        # Plot full line, but only mark every `step` points
+        plt.plot(
+            x_values,
+            y_values,
+            marker='o',
+            markevery=step,  # Show marker every `step` points
+            linewidth=1
+        )
+
+        plt.title(title)
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
+        plt.grid()
+        plt.savefig(filename)
+        plt.close()
     
     def _plot_prices(self, prices: dict, t):
         """
@@ -113,6 +139,8 @@ class World:
             plt.legend()
             plt.savefig(f'plots/{asset}_{t}_price_history.png')  # Save with a filename
             plt.close()  # Close the figure to free memory
+
+    
 
 
 
@@ -152,10 +180,10 @@ class State:
             price_history = price_histories[asset]
             dividend = dividends[asset]
 
-            for i in range(len(fundamental_thresholds)):
+            for i in range(len(fundamental_thresholds)): # Fundamental indicators
                 self._bitstring[index, i] = INTEREST_RATE * price / dividend > fundamental_thresholds[i]
             
-            for i in range(len(ma_windows)):
+            for i in range(len(ma_windows)): # Technical indicators
                 self._bitstring[index, i + len(fundamental_thresholds)] = price > compute_moving_average(price_history, ma_windows[i])
 
             self._bitstring[index, -1] = True

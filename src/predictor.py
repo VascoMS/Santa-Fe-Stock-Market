@@ -2,6 +2,9 @@ import random
 import numpy as np
 from constants import *
 
+SEED = 42
+np.random.seed(SEED)
+
 class Predictor:
     def __init__(self, asset_name: str):
         self._asset_name = asset_name
