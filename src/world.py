@@ -6,6 +6,9 @@ from constants import *
 import matplotlib.pyplot as plt
 import pandas as pd
 import os, datetime
+import json
+import os
+import datetime
 
 SEED = 42
 np.random.seed(SEED)
@@ -100,22 +103,58 @@ class World:
                     for predictor in predictors:
                         technical_bits_per_t += sum(1 for bit in predictor._condition_string[6:10] if bit == '1' or bit == '0')
             avg_technical_bits.append(technical_bits_per_t / NUM_AGENTS)
-        self.save_metrics_and_plots(avg_technical_bits)
-    
+        
+        time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        folder = f"results/{time}/experiment_{self._experiment_id}"
 
-    def save_metrics_and_plots(self, avg_technical_bits: List[int], steps: int = NUM_STEPS):
+        self.save_metrics_and_plots(avg_technical_bits, folder)
+
+        if SAVE_PREDICTORS:
+            self.save_predictors(folder)
+            
+
+
+
+    
+    def save_predictors(self, folder: str):
+        predictors = {}
+        for agent in self._agents:
+            # Create directory for saving predictors
+            os.makedirs(folder, exist_ok=True)
+
+            # Save this agent's predictors
+            agent_predictors = {}
+            for asset, predictors_list in agent._predictors.items():
+                agent_predictors[asset] = []
+                for predictor in predictors_list:
+                    predictor_data = predictor.to_dict()
+                    agent_predictors[asset].append(predictor_data)
+            predictors[agent._id] = agent_predictors
+        # Save to JSON
+        with open(f"{folder}/predictors.json", 'w') as f:
+            json.dump(predictors, f, indent=4)
+    
+    def load_predictors(self, folder: str):
+        """
+        Load predictors from a JSON file.
+        This method can be used to load predictors from a previous run.
+        """
+        with open(f"{folder}/predictors.json", 'r') as f:
+            predictors = json.load(f)
+            return predictors
+        
+
+    def save_metrics_and_plots(self, avg_technical_bits: List[int], folder: str, steps: int = NUM_STEPS):
         """
         Save metrics and plots for the simulation.
         This method can be extended to save more detailed metrics as needed.
         """
-        time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        folder = f"results/{time}/experiment_{self._experiment_id}"
         os.makedirs(folder, exist_ok=True)
         os.makedirs(f"{folder}/plots", exist_ok=True)
         os.makedirs(f"{folder}/data", exist_ok=True)
 
         price_history = self._market_maker.get_all_price_histories()["asset_1"]
-        self._plot_prices(price_history, f'{folder}/plots/Experiment_{self._experiment_id}_{REGIME}_{steps}_price_history.png')
+        self._plot_prices(price_history, f'{folder}/plots/{REGIME}_{steps}_price_history.png')
         x_values = range(len(avg_technical_bits))
         self._plot_values(avg_technical_bits, x_values, "Average Technical Bits Used Per Step", "Time Step", "Average Technical Bits", f"{folder}/plots/Experiment_{self._experiment_id}_{REGIME}_{steps}_avg_technical_bits.png")
         pd.Series(price_history).to_csv(f"{folder}/data/{REGIME}_{steps}_price_history.csv", index=False, header=False)

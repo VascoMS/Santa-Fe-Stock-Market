@@ -18,8 +18,8 @@ def compute_table1_stats(price_series: pd.Series, volume_series: pd.Series) -> p
 
     return pd.Series(stats)
 
-price_series = pd.read_csv('2025-06-05_12-15-23/experiment_1/data/SLOW_50000_price_history.csv', header=None).squeeze("columns")
-volume_series = pd.read_csv('2025-06-05_12-15-23/experiment_1/data/SLOW_50000_combined_volume.csv', header=None).squeeze("columns")
+price_series = pd.read_csv('2025-06-05_13-24-37-new-clone/experiment_1/data/FAST_50000_price_history.csv', header=None).squeeze("columns")[10000:]
+volume_series = pd.read_csv('2025-06-05_13-24-37-new-clone/experiment_1/data/FAST_50000_combined_volume.csv', header=None).squeeze("columns")[10000:]
 
 stats = compute_table1_stats(price_series, volume_series)
 print(stats)

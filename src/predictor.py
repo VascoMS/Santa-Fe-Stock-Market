@@ -1,4 +1,3 @@
-import random
 import numpy as np
 from constants import *
 
@@ -10,7 +9,7 @@ class Predictor:
         self._asset_name = asset_name
         self._a = np.random.uniform(0.7, 1.2) if MODE != 1 else HREE_A
         self._b = np.random.uniform(-10, 19.002) if MODE != 1 else HREE_B
-        self._variance = 4.0
+        self._variance = INITIAL_DEFAULT_VARIANCE
         self._last_prediction = None
         self._condition_string = [np.random.choice(['0', '1', '#'], p=[0.1, 0.1, 0.8]) for _ in range(NUM_INDICATORS)]
 
@@ -43,9 +42,22 @@ class Predictor:
         squared_error = (self._last_prediction - (true_price + true_dividend)) ** 2
         self._variance = (1 - LAMBDA) * self._variance + LAMBDA * squared_error
 
-    def mutate_params(self, mutation_rate_a: float = 0.05, mutation_rate_b: float = 0.8):
-        self._a += np.random.normal(0, mutation_rate_a)
-        self._b += np.random.normal(0, mutation_rate_b)
+    def mutate_params(self):
+        parameter_mutation_type = np.random.choice(["add", "sample", "nothing"], p =[0.2, 0.2, 0.6])
+
+        if parameter_mutation_type == "nothing":
+            return
+        elif parameter_mutation_type == "add":
+            a_range_size = 1.2 - 0.7
+            b_range_size = 19.002 - (-10)
+            change_size_a = a_range_size * 0.0005 # Mutation rate for parameter a 0.05 % over the initial range
+            change_size_b = b_range_size * 0.0005 # Mutation rate for parameter b 0.05 % over the initial range
+            self._a += np.random.uniform(-change_size_a, change_size_a)
+            self._b += np.random.uniform(-change_size_b, change_size_b)
+        elif parameter_mutation_type == "sample":
+            self._a = np.random.uniform(0.7, 1.2)
+            self._b = np.random.uniform(-10, 19.002)
+    
 
     def clone(self):
         clone = Predictor(self._asset_name)
@@ -85,3 +97,12 @@ class Predictor:
     
     def set_default_condition_string(self):
         self._condition_string = ['#'] * NUM_INDICATORS
+
+    def to_dict(self):
+        return {
+            "asset_name": self._asset_name,
+            "a": self._a,
+            "b": self._b,
+            "variance": self._variance,
+            "condition_string": self._condition_string
+        }

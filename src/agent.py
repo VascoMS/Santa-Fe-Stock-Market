@@ -7,27 +7,27 @@ SEED = 42
 np.random.seed(SEED)
 
 class Agent:
-    def __init__(self, id: str, cash: float):
+    def __init__(self, id: str, cash: float, predictors: List[Predictor] = None):
         self._id = id
-        # holdings in each of the three assets
-        self._portfolio = {"asset_1": 0, "asset_2": 0, "asset_3": 0}
+        
+        self._portfolio = {"asset_1": 0}
         # cash on hand
         self._cash = cash
         # desired holdings / demand each period
-        self._demand = {"asset_1": 0, "asset_2": 0, "asset_3": 0}
+        self._demand = {"asset_1": 0}
 
         self._latest_observation = None
 
-        self._activated_predictors: Dict[str, List[Predictor]] = {"asset_1": [], "asset_2": [], "asset_3": []}
-        self._previous_activated_predictors: Dict[str, List[Predictor]] = {"asset_1": [], "asset_2": [], "asset_3": []}
+        self._activated_predictors: Dict[str, List[Predictor]] = {"asset_1": []}
+        self._previous_activated_predictors: Dict[str, List[Predictor]] = {"asset_1": []}
 
         self._trading_volumes = []
-        # create a pool of predictors per asset
+        
         self._predictors: Dict[str, List[Predictor]] = {}
         for asset in self._portfolio:
             self._predictors[asset] = [
                 Predictor(asset) for _ in range(NUM_PREDICTORS)
-            ]
+            ] if predictors is None else {"asset_1": predictors} # Load provided predictors or generate new ones
         self._default_predictor = Predictor.generate_default_predictor("asset_1")
         self._auction_beginning = True
         self._expected = 0
@@ -205,10 +205,12 @@ class Agent:
                 child._b = parent_1.get_parameter_b()
         elif crossover_type == 1:
             # Linear combination
-            a_term = np.random.rand()
-            b_term = np.random.rand()
-            child._a = parent_1.get_parameter_a() * a_term + parent_2.get_parameter_a() * (1 - a_term)
-            child._b = parent_1.get_parameter_b() * b_term + parent_2.get_parameter_b() * (1 - b_term)
+            p1_weight = 1 / parent_1.get_variance()
+            p2_weight = 1 / parent_2.get_variance()
+            total_weight = p1_weight + p2_weight
+
+            child._a = (p1_weight / total_weight) * parent_1.get_parameter_a() + (p2_weight / total_weight) * parent_2.get_parameter_a()
+            child._b = (p1_weight / total_weight) * parent_1.get_parameter_b() + (p2_weight / total_weight) * parent_2.get_parameter_b()
         else:
             # Complete clone of one parent
             parent_choice = np.random.choice([parent_1, parent_2])
@@ -220,6 +222,7 @@ class Agent:
                 child._condition_string[i] = parent_1._condition_string[i]
             else:
                 child._condition_string[i] = parent_2._condition_string[i]
+        
         child._variance = (parent_1.get_variance() + parent_2.get_variance()) / 2
         return child
             
@@ -227,9 +230,9 @@ class Agent:
     def _evolve_predictors(self, asset: str) -> None:
         """
         Run a genetic algorithm to evolve the predictors for a specific asset.
-        Replaces the worst 20% (highest variance) with mutated clones of the top 20% (lowest variance).
+        Replaces the worst 20% (lowest fitness) with tournament winners (highest fitness) through crossover and mutation.
         """
-        # Sort predictors by variance (ascending: low to high)
+        # Sort predictors by fitness (ascending: low to high)
         sorted_predictors = sorted(
             self._predictors[asset],
             key=lambda p: p.calculate_fitness()
@@ -255,18 +258,23 @@ class Agent:
                 )
             else:
                 new_predictor = self.get_parent_for_evolution(asset, eligible_parents).clone()
-                # new_predictor = Predictor(asset)
-            if np.random.rand() < 0.03:
                 new_predictor.mutate_params()
-            bit_mutated = False
-            for i in range(len(new_predictor._condition_string)):
-                if np.random.rand() < 0.03:
-                    new_predictor._condition_string[i] = np.random.choice(['0', '1', '#'])
-                    bit_mutated = True
-            if bit_mutated:
-                new_predictor._variance = mean
-            elif new_predictor._variance < self._default_predictor._variance - np.std(variances):
-                new_predictor._variance = np.median(variances)
+                bit_mutated = False
+                for i in range(len(new_predictor._condition_string)):
+                    if np.random.rand() < 0.03:
+                        current_bit = new_predictor._condition_string[i]
+                        if current_bit == '0':
+                            new_predictor._condition_string[i] = np.random.choice(['1', '#'], p=[1/3, 2/3])
+                        elif current_bit == '1':
+                            new_predictor._condition_string[i] = np.random.choice(['0', '#'], p=[1/3, 2/3])
+                        else:
+                            new_predictor._condition_string[i] = np.random.choice(['0', '1'], p=[1/3, 2/3])
+                        # If the bit is mutated, set the variance to mean
+                        bit_mutated = True
+                if bit_mutated:
+                    new_predictor._variance = mean
+                elif new_predictor._variance < self._default_predictor._variance - np.std(variances):
+                    new_predictor._variance = np.median(variances)
 
             self._predictors[asset].remove(predictor)
             self._predictors[asset].append(new_predictor)
