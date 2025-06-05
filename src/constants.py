@@ -13,7 +13,7 @@ HREE_A = 0.95
 HREE_B = 4.501
 
 SAVE_PREDICTORS = True
-LOAD_STATE = True
+LOAD_STATE = False
 
 INITIAL_DEFAULT_VARIANCE = 4.0
 # Global Agent parameters

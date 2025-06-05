@@ -8,6 +8,7 @@ import pandas as pd
 import os, datetime
 import json
 import os
+from predictor import Predictor
 import datetime
 
 SEED = 42
@@ -18,11 +19,32 @@ class World:
         # Initialize market maker and agents
         self._market_maker = MarketMaker()
         # Create agents with an initial cash endowment
-        self._agents = [Agent(str(i), AGENT_INITIAL_CASH) for i in range(NUM_AGENTS)]
+        folder = "path/to/folder"
+        if LOAD_STATE:
+            saved_predictors = self.load_agent_predictors(saved_predictors, folder)
+            self._agents = [Agent(str(i), AGENT_INITIAL_CASH, saved_predictors[i]) for i in range(NUM_AGENTS)]
+        else:
+            self._agents = [Agent(str(i), AGENT_INITIAL_CASH) for i in range(NUM_AGENTS)]
         # State object for computing world bits
         self._state = State()
 
         self._experiment_id = experiment_id
+    
+
+    def load_agent_predictors(self, folder: str):
+        
+        with open(f"{folder}/predictors.json", 'r') as f:
+            saved_predictors = json.load(f)["asset_1"]
+            for agent in self._agents:
+                agent_predictors = []
+                if agent._id in saved_predictors:
+                    loaded_predictors_for_agent = saved_predictors[agent._id]
+                    for predictor in loaded_predictors_for_agent:
+                        predictor = Predictor.load_from_dict(predictor)
+                        agent_predictors.append(predictor)
+
+                            
+
 
 
     def _run_auctions(self):
@@ -112,9 +134,6 @@ class World:
         if SAVE_PREDICTORS:
             self.save_predictors(folder)
             
-
-
-
     
     def save_predictors(self, folder: str):
         predictors = {}
@@ -133,15 +152,7 @@ class World:
         # Save to JSON
         with open(f"{folder}/predictors.json", 'w') as f:
             json.dump(predictors, f, indent=4)
-    
-    def load_predictors(self, folder: str):
-        """
-        Load predictors from a JSON file.
-        This method can be used to load predictors from a previous run.
-        """
-        with open(f"{folder}/predictors.json", 'r') as f:
-            predictors = json.load(f)
-            return predictors
+        
         
 
     def save_metrics_and_plots(self, avg_technical_bits: List[int], folder: str, steps: int = NUM_STEPS):

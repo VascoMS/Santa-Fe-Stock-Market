@@ -31,6 +31,15 @@ class Predictor:
         predictor._condition_string = ['#'] * NUM_INDICATORS
         return predictor
 
+    @classmethod
+    def load_from_dict(cls, data: dict):
+        predictor = Predictor("asset_1")
+        predictor._a = data["_a"]
+        predictor._b = data["_b"]
+        predictor._variance = data["_variance"]
+        predictor._condition_string = data["_condition_string"]
+        return predictor
+
     def predict(self, current_price: float, current_dividend: float) -> float:
         prediction = self._a * (current_price + current_dividend) + self._b
         self._last_prediction = prediction
