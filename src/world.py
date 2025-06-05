@@ -4,12 +4,14 @@ from market_maker import MarketMaker
 from agent import Agent
 from constants import *
 import matplotlib.pyplot as plt
+import pandas as pd
+import os, datetime
 
 SEED = 42
 np.random.seed(SEED)
 
 class World:
-    def __init__(self):
+    def __init__(self, experiment_id: int = 0):
         # Initialize market maker and agents
         self._market_maker = MarketMaker()
         # Create agents with an initial cash endowment
@@ -17,7 +19,9 @@ class World:
         # State object for computing world bits
         self._state = State()
 
-    
+        self._experiment_id = experiment_id
+
+
     def _run_auctions(self):
         # 1. Launch new auctions
         self._market_maker.start_auctions()
@@ -96,23 +100,38 @@ class World:
                     for predictor in predictors:
                         technical_bits_per_t += sum(1 for bit in predictor._condition_string[6:10] if bit == '1' or bit == '0')
             avg_technical_bits.append(technical_bits_per_t / NUM_AGENTS)
-        self._plot_prices(self._market_maker.get_all_price_histories(), NUM_STEPS)
-        self._plot_values(avg_technical_bits, range(NUM_STEPS), "Average Technical Bits Used Per Step", "Time Step", "Average Technical Bits", "plots/avg_technical_bits.png")
+        self.save_metrics_and_plots(avg_technical_bits)
     
+
+    def save_metrics_and_plots(self, avg_technical_bits: List[int], steps: int = NUM_STEPS):
+        """
+        Save metrics and plots for the simulation.
+        This method can be extended to save more detailed metrics as needed.
+        """
+        time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        folder = f"results/{time}/experiment_{self._experiment_id}"
+        os.makedirs(folder, exist_ok=True)
+        os.makedirs(f"{folder}/plots", exist_ok=True)
+        os.makedirs(f"{folder}/data", exist_ok=True)
+
+        price_history = self._market_maker.get_all_price_histories()["asset_1"]
+        self._plot_prices(price_history, f'{folder}/plots/Experiment_{self._experiment_id}_{REGIME}_{steps}_price_history.png')
+        x_values = range(len(avg_technical_bits))
+        self._plot_values(avg_technical_bits, x_values, "Average Technical Bits Used Per Step", "Time Step", "Average Technical Bits", f"{folder}/plots/Experiment_{self._experiment_id}_{REGIME}_{steps}_avg_technical_bits.png")
+        pd.Series(price_history).to_csv(f"{folder}/data/{REGIME}_{steps}_price_history.csv", index=False, header=False)
+
+        combined_volume = [sum(vol) for vol in zip(*[agent._trading_volumes for agent in self._agents])]
+        pd.Series(combined_volume).to_csv(f"{folder}/data/{REGIME}_{steps}_combined_volume.csv", index=False, header=False)
+
     def _plot_values(self, y_values, x_values, title, xlabel, ylabel, filename):
         plt.figure(figsize=(10, 5))
 
-        # Calculate step size to place a marker every 4% of x_values
+        # Subsample every 4% of the data
         step = max(1, int(len(x_values) * 0.04))
+        x_sub = x_values[::step]
+        y_sub = y_values[::step]
 
-        # Plot full line, but only mark every `step` points
-        plt.plot(
-            x_values,
-            y_values,
-            marker='o',
-            markevery=step,  # Show marker every `step` points
-            linewidth=1
-        )
+        plt.plot(x_sub, y_sub, marker='o', linestyle='-', linewidth=1)
 
         plt.title(title)
         plt.xlabel(xlabel)
@@ -120,8 +139,9 @@ class World:
         plt.grid()
         plt.savefig(filename)
         plt.close()
+
     
-    def _plot_prices(self, prices: dict, t):
+    def _plot_prices(self, price_history: list, filename: str):
         """
         Plot the price history of all assets.
         
@@ -129,21 +149,14 @@ class World:
         - prices: Dictionary mapping asset IDs to lists of historical prices
         """
         import matplotlib.pyplot as plt
-
-        for asset, price_history in prices.items():
-            plt.figure()  # Start a new figure
-            plt.plot(range(len(price_history)), price_history, label=asset)
-            plt.xlabel('Time Step')
-            plt.ylabel('Price')
-            plt.title(f'{asset} Price History')
-            plt.legend()
-            plt.savefig(f'plots/{asset}_{t}_price_history.png')  # Save with a filename
-            plt.close()  # Close the figure to free memory
-
-    
-
-
-
+        offset = 500 
+        plt.figure()  # Start a new figure
+        plt.plot(range(offset, len(price_history)), price_history[offset:])
+        plt.xlabel('Time Step')
+        plt.ylabel('Price')
+        plt.title(f'Asset Price History')
+        plt.savefig(filename)  # Save with a filename
+        plt.close()  # Close the figure to free memory
     
 class State:
     def __init__(self):

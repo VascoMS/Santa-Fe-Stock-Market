@@ -12,9 +12,9 @@ class Asset:
         self._dividend = initial_dividend
         self._dividend_mean = initial_dividend
         self._prev_dividend_delta = self._dividend - self._dividend_mean
-        self._price = initial_dividend / INTEREST_RATE * 2
+        self._price = initial_dividend / INTEREST_RATE
         self._price_history = deque([self._price]) 
-        self._rho = rho # recommended -> 0.9 for d = 2 r = 0.02
+        self._rho = rho
         self._supply = supply
 
 
@@ -29,7 +29,7 @@ class Asset:
         return self._price
     
     def get_price_history(self) -> List[float]:
-        return self._price_history.copy()
+        return list(self._price_history.copy())
     
     def get_supply(self) -> int:
         return self._supply

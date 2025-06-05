@@ -1,5 +1,3 @@
-# agent.py
-
 import numpy as np
 from constants import *
 from predictor import Predictor
@@ -23,15 +21,14 @@ class Agent:
         self._activated_predictors: Dict[str, List[Predictor]] = {"asset_1": [], "asset_2": [], "asset_3": []}
         self._previous_activated_predictors: Dict[str, List[Predictor]] = {"asset_1": [], "asset_2": [], "asset_3": []}
 
-        self._nr_technical_bits = 0
-
+        self._trading_volumes = []
         # create a pool of predictors per asset
         self._predictors: Dict[str, List[Predictor]] = {}
         for asset in self._portfolio:
             self._predictors[asset] = [
                 Predictor(asset) for _ in range(NUM_PREDICTORS)
             ]
-        self._default_predictor = Predictor.generate_default_predictor("default")
+        self._default_predictor = Predictor.generate_default_predictor("asset_1")
         self._auction_beginning = True
         self._expected = 0
         self._latest_predictor = None
@@ -134,10 +131,7 @@ class Agent:
             return
             
         dividends = self._latest_observation["dividends"]
-        
-        # Interest on cash
-        self._cash *= (1 + INTEREST_RATE)
-        
+            
         # Dividends on holdings
         self._cash += sum(
             self._portfolio[asset] * dividends[asset]
@@ -147,6 +141,8 @@ class Agent:
     def _update_portfolio(self):
         """Re‐balance portfolio to match last period’s submitted demand."""
         asset_deltas = {asset: self._demand[asset] - self._portfolio[asset] for asset in self._portfolio}
+        volume = sum(abs(delta) for delta in asset_deltas.values())
+        self._trading_volumes.append(volume)
         self._cash -= sum(
             asset_deltas[asset] * self._latest_observation["prices"][asset]
             for asset in self._portfolio if asset in self._latest_observation["prices"]
@@ -241,20 +237,25 @@ class Agent:
 
         num_to_replace = int(0.2 * len(sorted_predictors))
 
-        # Select bottom 20% (highest variance)
-        worst = sorted_predictors[-num_to_replace:]
+        # Select bottom 20% (lowest fitness)
+        worst = sorted_predictors[:num_to_replace]
 
-        eligible_parents = sorted_predictors[:-num_to_replace]
+        eligible_parents = sorted_predictors[num_to_replace:]
+
+        variances = [p.get_variance() for p in self._predictors[asset]]
+        mean = np.mean(variances)
 
         for predictor in worst:
             #print(f"Agent {self._id} is evolving predictor : a: {predictor._a}, b: {predictor._b}, Condition: {predictor._condition_string}, Variance: {predictor.get_variance()}")
+
             if np.random.rand() <= CROSSOVER_RATE:
                 new_predictor = self.crossover(
                     self.get_parent_for_evolution(asset, eligible_parents),
                     self.get_parent_for_evolution(asset, eligible_parents),
                 )
             else:
-                new_predictor = Predictor(asset)
+                new_predictor = self.get_parent_for_evolution(asset, eligible_parents).clone()
+                # new_predictor = Predictor(asset)
             if np.random.rand() < 0.03:
                 new_predictor.mutate_params()
             bit_mutated = False
@@ -263,8 +264,10 @@ class Agent:
                     new_predictor._condition_string[i] = np.random.choice(['0', '1', '#'])
                     bit_mutated = True
             if bit_mutated:
-                mean_variance = np.mean([p.get_variance() for p in self._predictors[asset]])
-                new_predictor._variance = mean_variance
+                new_predictor._variance = mean
+            elif new_predictor._variance < self._default_predictor._variance - np.std(variances):
+                new_predictor._variance = np.median(variances)
+
             self._predictors[asset].remove(predictor)
             self._predictors[asset].append(new_predictor)
         
