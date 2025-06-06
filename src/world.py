@@ -42,11 +42,7 @@ class World:
                     for predictor in loaded_predictors_for_agent:
                         predictor = Predictor.load_from_dict(predictor)
                         agent_predictors.append(predictor)
-
-                            
-
-
-
+                        
     def _run_auctions(self):
         # 1. Launch new auctions
         self._market_maker.start_auctions()
@@ -120,14 +116,14 @@ class World:
             technical_bits_per_t = 0
             for agent in self._agents:
                 agent.update()
-                for asset, predictors in agent._predictors.items():
+                for _, predictors in agent._predictors.items():
                     # Count technical bits used by the predictor
                     for predictor in predictors:
                         technical_bits_per_t += sum(1 for bit in predictor._condition_string[6:10] if bit == '1' or bit == '0')
             avg_technical_bits.append(technical_bits_per_t / NUM_AGENTS)
         
         time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        folder = f"results/{time}/experiment_{self._experiment_id}"
+        folder = f"results/{time}_{REGIME}/experiment_{self._experiment_id}"
 
         self.save_metrics_and_plots(avg_technical_bits, folder)
 
