@@ -34,10 +34,10 @@ class Predictor:
     @classmethod
     def load_from_dict(cls, data: dict):
         predictor = Predictor("asset_1")
-        predictor._a = data["_a"]
-        predictor._b = data["_b"]
-        predictor._variance = data["_variance"]
-        predictor._condition_string = data["_condition_string"]
+        predictor._a = data["a"]
+        predictor._b = data["b"]
+        predictor._variance = data["variance"]
+        predictor._condition_string = data["condition_string"]
         return predictor
 
     def predict(self, current_price: float, current_dividend: float) -> float:

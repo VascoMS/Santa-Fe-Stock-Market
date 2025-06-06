@@ -27,7 +27,7 @@ class Agent:
         for asset in self._portfolio:
             self._predictors[asset] = [
                 Predictor(asset) for _ in range(NUM_PREDICTORS)
-            ] if predictors is None else {"asset_1": predictors} # Load provided predictors or generate new ones
+            ] if predictors is None else predictors # Load provided predictors or generate new ones
         self._default_predictor = Predictor.generate_default_predictor("asset_1")
         self._auction_beginning = True
         self._expected = 0

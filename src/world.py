@@ -15,13 +15,14 @@ SEED = 42
 np.random.seed(SEED)
 
 class World:
-    def __init__(self, experiment_id: int = 0):
-        # Initialize market maker and agents
-        self._market_maker = MarketMaker()
+    def __init__(self, experiment_id: int = 0, parameter_filename: str = None, pricehistory_filename: str = None):
         # Create agents with an initial cash endowment
-        folder = "path/to/folder"
         if LOAD_STATE:
-            saved_predictors = self.load_agent_predictors(saved_predictors, folder)
+            self._market_maker = MarketMaker()
+            price_history = pd.read_csv(pricehistory_filename, header=None).values.flatten().tolist()
+            self._market_maker.get_asset("asset_1").set_price_history(price_history)
+            self._market_maker.get_asset("asset_1").set_price(price_history[-1])
+            saved_predictors = self.load_agent_predictors(parameter_filename)
             self._agents = [Agent(str(i), AGENT_INITIAL_CASH, saved_predictors[i]) for i in range(NUM_AGENTS)]
         else:
             self._agents = [Agent(str(i), AGENT_INITIAL_CASH) for i in range(NUM_AGENTS)]
@@ -31,17 +32,19 @@ class World:
         self._experiment_id = experiment_id
     
 
-    def load_agent_predictors(self, folder: str):
-        
-        with open(f"{folder}/predictors.json", 'r') as f:
-            saved_predictors = json.load(f)["asset_1"]
-            for agent in self._agents:
+    def load_agent_predictors(self, parameter_filename: str):
+        predictor_dict = {}
+        with open(parameter_filename, 'r') as f:
+            saved_predictors = json.load(f)
+            for i in range(NUM_AGENTS):
                 agent_predictors = []
-                if agent._id in saved_predictors:
-                    loaded_predictors_for_agent = saved_predictors[agent._id]
-                    for predictor in loaded_predictors_for_agent:
-                        predictor = Predictor.load_from_dict(predictor)
-                        agent_predictors.append(predictor)
+                loaded_predictors_for_agent = saved_predictors[str(i)]["asset_1"]
+                for predictor in loaded_predictors_for_agent:
+                    predictor = Predictor.load_from_dict(predictor)
+                    agent_predictors.append(predictor)
+                predictor_dict[i] = agent_predictors
+        return predictor_dict
+        
                         
     def _run_auctions(self):
         # 1. Launch new auctions

@@ -38,6 +38,9 @@ class Asset:
         self._price = price
         self._price_history.append(price)
 
+    def set_price_history(self, price_history: List[float]):
+        self._price_history = deque(price_history)
+
 class Auction:
     def __init__(self, asset: Asset, k: float):
         self._price = asset.get_price()
@@ -153,3 +156,6 @@ class MarketMaker:
     def clear_auctions(self, assets: List[str]):
         for asset in assets:
             self._auctions[asset].clear_demand()
+
+    def get_asset(self, id: str) -> Asset:
+        return self._assets[id]
