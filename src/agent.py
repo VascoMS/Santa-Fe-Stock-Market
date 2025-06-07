@@ -34,24 +34,9 @@ class Agent:
         self._latest_predictor = None
 
     def observe(self, observation: Dict[str, Any]) -> None:
-        """
-        Process and store an observation of the market state.
-        
-        Parameters:
-        - observation: Dictionary containing:
-            - bitstring: Binary array of market indicators
-            - asset_indexes: Mapping of asset IDs to their indexes in the bitstring
-            - prices: Current prices of all assets
-            - dividends: Current dividends of all assets
-            - uncleared_assets: List of assets with uncleared markets
-        """
         self._latest_observation = observation
 
     def act(self) -> Dict[str, Tuple[int, float]]:
-        """
-        Calculate demands based on the latest observation.
-        Returns a dictionary of asset_id -> (quantity, price_slope).
-        """
         if not self._latest_observation:
             return {}
             
@@ -75,7 +60,6 @@ class Agent:
                 ]
                 
                 if not active_predictors:
-                    #print(f"Agent {self._id} found no active predictors for asset {asset}.")
                     active_predictors = [self._default_predictor]
                 
                 self._activated_predictors[asset] = active_predictors
@@ -84,19 +68,16 @@ class Agent:
                 # One-step ahead forecast of total payout
                 self._expected = best_p.predict(price, dividend)
                 self._latest_predictor = best_p
-                #print(f"Agent {self._id} is computing new expected value and variance for asset {asset}: Expected = {self._expected}, Variance = {self._latest_predictor.get_variance()}")
 
-            # CARA-optimal target shares
+            # Target shares
             target_h = (self._expected - price * (1 + INTEREST_RATE)) / (
                 RISK_AVERSION * self._latest_predictor.get_variance()
             )
             qty = self._bound_demand(np.round(target_h, 2), self._portfolio[asset], price)
 
             # Record for portfolio update
-            self._demand[asset] = qty
-            # Submit to auction 
+            self._demand[asset] = qty 
             slope = (self._latest_predictor.get_parameter_a() - (1 + INTEREST_RATE)) / (RISK_AVERSION * self._latest_predictor.get_variance()) # dh/dp
-            #print(f"Agent {self._id} - Asset: {asset}, Expected: {self._expected}, Price: {price}, Demand: {qty}, Slope: {slope} a: {self._latest_predictor.get_parameter_a()}, b: {self._latest_predictor.get_parameter_b()} variance: {self._latest_predictor.get_variance()} bitstring: {self._latest_predictor._condition_string}")
             demands_and_slope[asset] = (qty, slope)
             
         return demands_and_slope
@@ -112,7 +93,6 @@ class Agent:
         return min(max(demand, 0), self._cash/price + current_holding)
     
     def compute_wealth(self) -> float:
-        """Calculate total wealth = cash + market value of all holdings."""
         if not self._latest_observation:
             return self._cash
             
@@ -126,7 +106,6 @@ class Agent:
         return self._cash + portfolio_value
 
     def _update_cash(self) -> None:
-        """Roll cash forward by interest and collect dividends."""
         if not self._latest_observation:
             return
             
@@ -139,7 +118,6 @@ class Agent:
         )
 
     def _update_portfolio(self):
-        """Re‐balance portfolio to match last period’s submitted demand."""
         asset_deltas = {asset: self._demand[asset] - self._portfolio[asset] for asset in self._portfolio}
         volume = sum(abs(delta) for delta in asset_deltas.values())
         self._trading_volumes.append(volume)
@@ -149,11 +127,18 @@ class Agent:
         )
         self._portfolio = self._demand.copy()
 
+    def print_trades(self, asset_deltas, price_prediction) -> None:
+        for asset, delta in asset_deltas.items():
+            print()
+            print(f"Agent {self._id} predicts price for the asset to be {price_prediction:.2f}.")
+            if delta > 0:
+                print(f"Agent {self._id} bought {delta} units of the asset.")
+            elif delta < 0:
+                print(f"Agent {self._id} sold {-delta} units of the asset.")
+            else:
+                print(f"Agent {self._id} made no trades.")
+
     def _update_predictors(self) -> None:
-        """
-        Update each predictor's performance using the true price and dividend.
-        Optionally: mutate or run GA here at rate 1/K.
-        """
         if not self._latest_observation:
             return
             
@@ -177,10 +162,6 @@ class Agent:
                     self._evolve_predictors(asset)
     
     def update(self):
-        """
-        Update the agent's state.
-        This method is called at each time step to update the agent's state.
-        """
         # Update cash and portfolio
         self._update_cash()
         self._update_portfolio()
@@ -228,10 +209,6 @@ class Agent:
             
             
     def _evolve_predictors(self, asset: str) -> None:
-        """
-        Run a genetic algorithm to evolve the predictors for a specific asset.
-        Replaces the worst 20% (lowest fitness) with tournament winners (highest fitness) through crossover and mutation.
-        """
         # Sort predictors by fitness (ascending: low to high)
         sorted_predictors = sorted(
             self._predictors[asset],
@@ -249,8 +226,6 @@ class Agent:
         mean = np.mean(variances)
 
         for predictor in worst:
-            #print(f"Agent {self._id} is evolving predictor : a: {predictor._a}, b: {predictor._b}, Condition: {predictor._condition_string}, Variance: {predictor.get_variance()}")
-
             if np.random.rand() <= CROSSOVER_RATE:
                 new_predictor = self.crossover(
                     self.get_parent_for_evolution(asset, eligible_parents),

@@ -1,3 +1,4 @@
+from time import sleep
 from typing import List
 import numpy as np
 from market_maker import MarketMaker
@@ -16,9 +17,9 @@ np.random.seed(SEED)
 
 class World:
     def __init__(self, experiment_id: int = 0, parameter_filename: str = None, pricehistory_filename: str = None):
-        # Create agents with an initial cash endowment
+        # Create agents with initial cash 
+        self._market_maker = MarketMaker()
         if LOAD_STATE:
-            self._market_maker = MarketMaker()
             price_history = pd.read_csv(pricehistory_filename, header=None).values.flatten().tolist()
             self._market_maker.get_asset("asset_1").set_price_history(price_history)
             self._market_maker.get_asset("asset_1").set_price(price_history[-1])
@@ -56,7 +57,7 @@ class World:
         price_histories = self._market_maker.get_all_price_histories()
 
         # 2. Compute current information bits
-        bits = self._state.update_bitstring(prices, price_histories, dividends) # shape (3, NUM_INDICATORS)    
+        bits = self._state.update_bitstring(prices, price_histories, dividends)     
 
         i = 0
         
@@ -84,7 +85,7 @@ class World:
                     self._market_maker.add_demand(asset, demand, slope)
                 
                     
-            # Run auctions for all uncleared assets and get new prices
+            # Run auctions for the uncleared asset and get new price
             new_prices = self._market_maker.run_auctions(uncleared_assets)
 
             for asset in uncleared_assets:
@@ -94,22 +95,12 @@ class World:
         
         for agent in self._agents:
             agent._auction_beginning = True
-        #print(f"Auctions cleared after {i} iterations.")
 
-        # Update prices and dividends for all assets
-        #print(f"Market cleared: {len(uncleared_assets) == 0}")
+        # Update price and dividend for asset
         self._market_maker.finalize_auctions()
         self._market_maker.update_dividends()
 
     def run(self):
-        """
-        Run the market for NUM_STEPS periods. Each step:
-        1. Start new auctions for each asset
-        2. Update world bitstrings for information set
-        3. Agents make predictions & submit demands
-        4. Market clears via auctions: prices and dividends update
-        5. Agents update cash, portfolios, and predictor performance
-        """
         avg_technical_bits = []
         for t in range(1, NUM_STEPS+1):
             print(f"Step {t}/{NUM_STEPS}")
@@ -155,10 +146,6 @@ class World:
         
 
     def save_metrics_and_plots(self, avg_technical_bits: List[int], folder: str, steps: int = NUM_STEPS):
-        """
-        Save metrics and plots for the simulation.
-        This method can be extended to save more detailed metrics as needed.
-        """
         os.makedirs(folder, exist_ok=True)
         os.makedirs(f"{folder}/plots", exist_ok=True)
         os.makedirs(f"{folder}/data", exist_ok=True)
@@ -191,16 +178,9 @@ class World:
 
     
     def _plot_prices(self, price_history: list, filename: str):
-        """
-        Plot the price history of all assets.
-        
-        Parameters:
-        - prices: Dictionary mapping asset IDs to lists of historical prices
-        """
         import matplotlib.pyplot as plt
-        offset = 500 
         plt.figure()  # Start a new figure
-        plt.plot(range(offset, len(price_history)), price_history[offset:])
+        plt.plot(range(len(price_history)), price_history)
         plt.xlabel('Time Step')
         plt.ylabel('Price')
         plt.title(f'Asset Price History')
@@ -211,23 +191,10 @@ class State:
     def __init__(self):
         self._asset_indexes = {
             "asset_1": 0,
-            # "asset_2": 1,
-            # "asset_3": 2
         }
         self._bitstring = np.zeros((NUM_ASSETS, NUM_INDICATORS))
     
     def update_bitstring(self, prices, price_histories, dividends):
-        """
-        Update the bitstring based on market data passed in as parameters.
-        
-        Parameters:
-        - prices: Dict mapping asset IDs to current prices
-        - price_histories: Dict mapping asset IDs to lists of historical prices
-        - dividends: Dict mapping asset IDs to current dividends
-        
-        Returns:
-        - The updated bitstring numpy array
-        """
         def compute_moving_average(price_history, n_steps):
             if n_steps > len(price_history):
                 return np.mean(np.array(price_history))
@@ -252,6 +219,3 @@ class State:
             self._bitstring[index, -2] = False
         
         return self._bitstring
-
-            
-            

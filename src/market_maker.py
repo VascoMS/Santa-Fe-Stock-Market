@@ -17,7 +17,6 @@ class Asset:
         self._rho = rho
         self._supply = supply
 
-
     def update_dividend(self) -> float:
         self._dividend = self._dividend_mean + self._rho*(self._dividend - self._dividend_mean) + np.random.normal(0, sqrt(ASSET_1_ERROR_VARIANCE))
         return self._dividend
@@ -62,7 +61,6 @@ class Auction:
                 self._price = min(max(0.01, self._price - self._k * (delta/self._slope)), 500)
             else:
                 self._price = min(max(0.01, self._price + self._k*delta), 500)
-            #print(f"Ran auction : Price = {self._price}, Demand = {self._demand}, Supply = {self._supply}, Slope = {self._slope}, Demand diff = {delta}")
             self._demand = 0
             self._slope = 0
         return self._price
@@ -84,18 +82,6 @@ class MarketMaker:
             rho=ASSET_1_RHO,
             supply=ASSET_1_SUPPLY
         ),
-        # "asset_2": Asset(
-        #     initial_dividend=ASSET_2_INITIAL_DIVIDEND,
-        #     rho=ASSET_2_RHO,
-        #     alpha=ASSET_2_ALPHA,
-        #     supply=ASSET_2_SUPPLY
-        # ),
-        # "asset_3": Asset(
-        #     initial_dividend=ASSET_3_INITIAL_DIVIDEND,
-        #     rho=ASSET_3_RHO,
-        #     alpha=ASSET_3_ALPHA,
-        #     supply=ASSET_3_SUPPLY
-        # )
     }
     
     def add_demand(self, asset: str, amount: int, slope:int):
@@ -117,8 +103,6 @@ class MarketMaker:
             auction = self._auctions[asset_id]
             if auction:
                 asset.set_price(auction._price)
-                asset
-                #print(f"Auction cleared: Price = {auction._price}, Demand = {auction._demand}, Supply = {auction._supply}")
             
     def start_auctions(self):
         for asset_id, asset in self._assets.items():
@@ -151,7 +135,6 @@ class MarketMaker:
     def update_dividends(self):
         for id, asset in self._assets.items():
             asset.update_dividend()
-            #print(f"Updated dividend for {id}: {asset.get_dividend()}")
     
     def clear_auctions(self, assets: List[str]):
         for asset in assets:
